@@ -109,7 +109,7 @@ export const animationTime = {
       context.setOutputs({
         time,
       });
-      context.transient.reqId = window.requestAnimationFrame(onFrame);
+      context.transient.reqId = requestAnimationFrame(onFrame);
     };
 
     // Set initial output to reasonable value and kick off updates
@@ -117,6 +117,6 @@ export const animationTime = {
   },
 
   destroy: (context) => {
-    document.cancelAnimationFrame(context.transient.reqId);
+    cancelAnimationFrame(context.transient.reqId);
   },
 };
