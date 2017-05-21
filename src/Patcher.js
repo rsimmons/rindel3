@@ -62,7 +62,7 @@ export default class Patcher {
         for (const cid of outputCxns[outPort]) {
           const cxn = this.cxnMap[cid];
           const downstreamNodeId = cxn.toNodeId;
-          const downstreamInputStream = this.nodeMap[downstreamNodeId].inputStreams[cxn.toPort];
+          const downstreamInputStream = this.nodeMap.get(downstreamNodeId).inputStreams[cxn.toPort];
           downstreamInputStream.copyFrom(outputStreams[outPort]);
           this.insertNodeTask(downstreamNodeId);
         }
@@ -92,7 +92,7 @@ export default class Patcher {
     nodeDef.create(context);
 
     // Make record in map
-    this.nodeMap[nid] = {
+    this.nodeMap.set(nid, {
       nodeDef,
       context,
       inputCxns,
@@ -101,7 +101,7 @@ export default class Patcher {
       outputStreams,
       // toposortIndex: null, // since not connected, no index
       toposortIndex: nid, // TODO: unhack (restore line above) when we have toposort
-    };
+    });
 
     return nid;
   }
@@ -112,8 +112,8 @@ export default class Patcher {
 
     // TODO: we could sanity check node ids and port names
 
-    const fromNode = this.nodeMap[fromNodeId];
-    const toNode = this.nodeMap[toNodeId];
+    const fromNode = this.nodeMap.get(fromNodeId);
+    const toNode = this.nodeMap.get(toNodeId);
 
     if (toNode.inputCxns[toPort]) {
       throw new Error('input port already has a connection');
@@ -148,7 +148,7 @@ export default class Patcher {
   }
 
   insertNodeTask(nodeId) {
-    const priority = this.nodeMap[nodeId].toposortIndex;
+    const priority = this.nodeMap.get(nodeId).toposortIndex;
     this.priorityQueue.insert(priority, nodeId);
   }
 
@@ -170,7 +170,7 @@ export default class Patcher {
       }
 
       // Do update for given node
-      const nodeRec = this.nodeMap[nid];
+      const nodeRec = this.nodeMap.get(nid);
       const inputs = {};
       for (const k in nodeRec.nodeDef.inputs) {
         const inputStream = nodeRec.inputStreams[k];
