@@ -142,6 +142,18 @@ export default class Patcher {
     }
   }
 
+  clear() {
+    // Destroy all nodes (many require cleanup)
+    for (const [nid, node] of this.nodeMap) {
+      node.nodeDef.destroy(node.context);
+    }
+
+    this.nodeMap.clear();
+    this.cxnMap.clear();
+    this.pumping = false;
+    this.priorityQueue.clear();
+  }
+
   updateToposort() {
     // TODO: implement
     return true;

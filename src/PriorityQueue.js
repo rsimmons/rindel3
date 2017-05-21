@@ -21,4 +21,10 @@ export default class PriorityQueue {
   peek() {
     return this.fpq.peek().data;
   }
+
+  clear() {
+    while (!this.fpq.isEmpty()) {
+      this.fpq.poll();
+    }
+  }
 }

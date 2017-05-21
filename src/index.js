@@ -6,7 +6,8 @@ const patcher = new Patcher();
 const programListElem = document.getElementById('program-list');
 
 const startProgram = (program) => {
-  // TODO: stop previous program if necessary
+  // Clear any previous patch
+  patcher.clear();
 
   program.run(patcher);
 }
