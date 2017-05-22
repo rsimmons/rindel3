@@ -31,20 +31,23 @@ export default class Patcher {
     const nid = this.nextNodeId;
     this.nextNodeId++;
 
-    // Create input cxns map
-    const inputCxns = {}; // maps port name to cxn id or null
-    const inputStreams = {}; // maps port name to object with input stream value
+    // Create inputs map
+    const inputs = {}; // map port name to record
     for (const k in nodeDef.inputs) {
-      inputCxns[k] = null;
-      inputStreams[k] = new Stream();
+      inputs[k] = {
+        cxn: null,
+        stream: new Stream(),
+      }
+      inputs[k].stream.lastChangedInstant = this.currentInstant;
     }
 
     // Create output streams and cxn lists
-    const outputCxns = {}; // maps port name to array of cxn ids
-    const outputStreams = {}; // maps port name to stream object
+    const outputs = {}; // maps port name to record
     for (const k in nodeDef.outputs) {
-      outputCxns[k] = [];
-      outputStreams[k] = new Stream();
+      outputs[k] = {
+        cxns: [],
+        stream: new Stream(),
+      };
     }
 
     // TODO: can we do this without a closure?
@@ -56,14 +59,12 @@ export default class Patcher {
         // TODO: I think we can do a sanity check here: if the lastChangedInstant of this
         //  stream is the current instant, then we are in some kind of cycle or a node
         //  has misbehaved and output more than once
-        outputStreams[outPort].setValue(changedOutputs[outPort], this.currentInstant);
+        outputs[outPort].stream.setValue(changedOutputs[outPort], this.currentInstant);
 
-        // Copy values to downstream and insert PQ tasks
-        for (const cid of outputCxns[outPort]) {
+        // Insert PQ tasks for downstream nodes
+        for (const cid of outputs[outPort].cxns) {
           const cxn = this.cxnMap[cid];
           const downstreamNodeId = cxn.toNodeId;
-          const downstreamInputStream = this.nodeMap.get(downstreamNodeId).inputStreams[cxn.toPort];
-          downstreamInputStream.copyFrom(outputStreams[outPort]);
           this.insertNodeTask(downstreamNodeId);
         }
       }
@@ -95,10 +96,8 @@ export default class Patcher {
     this.nodeMap.set(nid, {
       nodeDef,
       context,
-      inputCxns,
-      outputCxns,
-      inputStreams,
-      outputStreams,
+      inputs,
+      outputs,
       // toposortIndex: null, // since not connected, no index
       toposortIndex: nid, // TODO: unhack (restore line above) when we have toposort
     });
@@ -115,12 +114,13 @@ export default class Patcher {
     const fromNode = this.nodeMap.get(fromNodeId);
     const toNode = this.nodeMap.get(toNodeId);
 
-    if (toNode.inputCxns[toPort]) {
+    if (toNode.inputs[toPort].cxn) {
       throw new Error('input port already has a connection');
     }
 
-    fromNode.outputCxns[fromPort].push(cid);
-    toNode.inputCxns[toPort] = cid;
+    fromNode.outputs[fromPort].cxns.push(cid);
+    toNode.inputs[toPort].cxn = cid;
+    toNode.inputs[toPort].stream = fromNode.outputs[fromPort].stream;
 
     this.cxnMap[cid] = {
       fromNodeId,
@@ -185,8 +185,8 @@ export default class Patcher {
       const nodeRec = this.nodeMap.get(nid);
       const inputs = {};
       for (const k in nodeRec.nodeDef.inputs) {
-        const inputStream = nodeRec.inputStreams[k];
-        const changed =  inputStream.instant === instant;
+        const inputStream = nodeRec.inputs[k].stream;
+        const changed = inputStream.instant === instant;
 
         inputs[k] = {
           value: (nodeRec.nodeDef.inputs[k].tempo === 'event') ? (changed ? inputStream.latestValue : undefined) : inputStream.latestValue,
