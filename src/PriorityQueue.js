@@ -2,7 +2,7 @@ import FastPriorityQueue from 'fastpriorityqueue';
 
 export default class PriorityQueue {
   constructor() {
-    this.fpq = new FastPriorityQueue((a, b) => (a.priority - b.priority));
+    this.fpq = new FastPriorityQueue((a, b) => (a.priority < b.priority));
   }
 
   isEmpty() {

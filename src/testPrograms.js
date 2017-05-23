@@ -57,4 +57,27 @@ export default [
       patcher.addConnection(nzId, 'audioBuffer', amId, 'audioBuffer');
     },
   },
+
+  {
+    name: 'noise while mouse down',
+    run: (patcher) => {
+      const mdId = patcher.addNode(nodeDefs.mouseDown);
+      const amId = patcher.addNode(nodeDefs.audioManager);
+      const nzId = patcher.addNode(nodeDefs.noise);
+      const bgId = patcher.addNode(nodeDefs.boolToAudioGate);
+      const multId = patcher.addNode(nodeDefs.multiplier);
+
+      patcher.addConnection(mdId, 'down', bgId, 'on');
+
+      patcher.addConnection(amId, 'renderAudio', nzId, 'renderAudio');
+      patcher.addConnection(amId, 'renderAudio', bgId, 'renderAudio');
+      patcher.addConnection(amId, 'renderAudio', multId, 'renderAudio');
+
+      patcher.addConnection(nzId, 'audioBuffer', multId, 'a');
+
+      patcher.addConnection(bgId, 'audioBuffer', multId, 'b');
+
+      patcher.addConnection(multId, 'audioBuffer', amId, 'audioBuffer');
+    },
+  },
 ]

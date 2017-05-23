@@ -256,3 +256,71 @@ export const noise = {
   destroy: (context) => {
   },
 };
+
+export const boolToAudioGate = {
+  inputs: {
+    renderAudio: {tempo: 'event'},
+    on: {tempo: 'step'},
+  },
+  outputs: {
+    audioBuffer: {tempo: 'event'},
+  },
+
+  create: (context) => {
+  },
+
+  update: (context, inputs) => {
+    if (inputs.renderAudio.changed) {
+      const frames = inputs.renderAudio.value;
+      const audioBuffer = new Float32Array(frames);
+      audioBuffer.fill(inputs.on.value ? 1 : 0);
+
+      context.setOutputs({
+        audioBuffer,
+      });
+    }
+  },
+
+  destroy: (context) => {
+  },
+};
+
+export const multiplier = {
+  inputs: {
+    renderAudio: {tempo: 'event'},
+    a: {tempo: 'event'},
+    b: {tempo: 'event'},
+  },
+  outputs: {
+    audioBuffer: {tempo: 'event'},
+  },
+
+  create: (context) => {
+  },
+
+  update: (context, inputs) => {
+    if (!inputs.renderAudio.changed) {
+      throw new Error('received input audio without render event');
+    }
+
+    const frames = inputs.renderAudio.value;
+
+    // TODO: support having a or b being disconnected
+
+    if ((inputs.a.value.length !== frames) || (inputs.b.value.length !== frames)) {
+      throw new Error('input audio buffer wrong length');
+    }
+
+    const audioBuffer = new Float32Array(frames);
+    for (let i = 0; i < frames; i++) {
+      audioBuffer[i] = inputs.a.value[i]*inputs.b.value[i];
+    }
+
+    context.setOutputs({
+      audioBuffer,
+    });
+  },
+
+  destroy: (context) => {
+  },
+}
