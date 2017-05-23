@@ -39,6 +39,49 @@ export const mousePos = {
   },
 };
 
+export const mouseDown = {
+  inputs: {},
+  outputs: {
+    down: {tempo: 'step'},
+  },
+
+  create: (context) => {
+    const onMouseDown = (e) => {
+      context.setOutputs({
+        down: true,
+      });
+    };
+
+    const onMouseUp = (e) => {
+      context.setOutputs({
+        down: false,
+      });
+    };
+
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mouseup', onMouseUp);
+
+    context.transient = {
+      onMouseDown,
+      onMouseUp,
+    };
+
+    // Set initial output (we assume up, but will be fine if already up
+    context.setOutputs({
+      down: false,
+    });
+  },
+
+  update: (context, inputs) => {
+    // Nothing to do here
+  },
+
+  destroy: (context) => {
+    document.removeEventListener('mousedown', context.transient.onMouseDown);
+    document.removeEventListener('mouseup', context.transient.onMouseUp);
+  },
+};
+
 // TODO: Should we hide it if input coords are undefined?
 export const redSquare = {
   inputs: {

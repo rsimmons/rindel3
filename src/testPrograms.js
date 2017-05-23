@@ -31,6 +31,15 @@ export default [
   },
 
   {
+    name: 'show mouse down',
+    run: (patcher) => {
+      const mpId = patcher.addNode(nodeDefs.mouseDown);
+      const ssId = patcher.addNode(nodeDefs.showString);
+      patcher.addConnection(mpId, 'down', ssId, 'v');
+    },
+  },
+
+  {
     name: 'show time',
     run: (patcher) => {
       const atId = patcher.addNode(nodeDefs.animationTime);
