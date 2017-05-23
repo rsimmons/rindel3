@@ -120,3 +120,96 @@ export const animationTime = {
     cancelAnimationFrame(context.transient.reqId);
   },
 };
+
+export const audioManager = {
+  inputs: {
+    audioBuffer: {tempo: 'event'},
+  },
+  outputs: {
+    renderAudio: {tempo: 'event'},
+    sampleRate: {tempo: 'const'},
+  },
+
+  create: (context) => {
+    const BUFFER_SIZE = 1024;
+
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    const onAudioProcess = (e) => {
+      context.transient.bufferToFill = e.outputBuffer.getChannelData(0);
+      context.setOutputs({
+        renderAudio: BUFFER_SIZE,
+      });
+      context.transient.bufferToFill = null;
+      // NOTE: If buffer didn't get filled (e.g. no input connected), that's fine
+    };
+
+    const scriptNode = audioContext.createScriptProcessor(BUFFER_SIZE, 0, 1); // 0 input channels, 1 output channel
+    scriptNode.onaudioprocess = onAudioProcess;
+    scriptNode.connect(audioContext.destination);
+
+    context.transient = {
+      BUFFER_SIZE,
+      audioContext,
+      scriptNode,
+      bufferToFill: null,
+    };
+
+    // Set initial output
+    context.setOutputs({
+      sampleRate: audioContext.sampleRate,
+    });
+  },
+
+  update: (context, inputs) => {
+    // NOTE: We expect to receive an audioBuffer event in the same instant that we emit the renderAudio event.
+    // In other words, the emission of the renderAudio event must _synchronously_ cause us to receive an audioBuffer
+    // event in response, it's like a function call.
+    if (!context.transient.bufferToFill) {
+      // This shouldn't happen. We could potentially ignore it, but for now we'll throw
+      throw new Error('received input when not rendering');
+    }
+
+    // TODO: assert that we've received an audioBuffer event
+
+    if (inputs.audioBuffer.value.length !== context.transient.BUFFER_SIZE) {
+      throw new Error('receive audio buffer of wrong size');
+    }
+
+    context.transient.bufferToFill.set(inputs.audioBuffer.value);
+  },
+
+  destroy: (context) => {
+    context.transient.scriptNode.disconnect();
+    context.transient.audioContext.close();
+  },
+};
+
+export const noise = {
+  inputs: {
+    renderAudio: {tempo: 'event'},
+  },
+  outputs: {
+    audioBuffer: {tempo: 'event'},
+  },
+
+  create: (context) => {
+  },
+
+  update: (context, inputs) => {
+    // TODO: assert that we received renderAudio event?
+
+    const frames = inputs.renderAudio.value;
+    const audioBuffer = new Float32Array(frames);
+    for (let i = 0; i < frames; i++) {
+      audioBuffer[i] = 0.1*Math.random() - 0.05;
+    }
+
+    context.setOutputs({
+      audioBuffer,
+    });
+  },
+
+  destroy: (context) => {
+  },
+};

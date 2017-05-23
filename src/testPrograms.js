@@ -38,4 +38,14 @@ export default [
       patcher.addConnection(atId, 'time', ssId, 'v');
     },
   },
+
+  {
+    name: 'noise',
+    run: (patcher) => {
+      const amId = patcher.addNode(nodeDefs.audioManager);
+      const nzId = patcher.addNode(nodeDefs.noise);
+      patcher.addConnection(amId, 'renderAudio', nzId, 'renderAudio');
+      patcher.addConnection(nzId, 'audioBuffer', amId, 'audioBuffer');
+    },
+  },
 ]
