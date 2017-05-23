@@ -186,7 +186,7 @@ export default class Patcher {
       const inputs = {};
       for (const k in nodeRec.nodeDef.inputs) {
         const inputStream = nodeRec.inputs[k].stream;
-        const changed = inputStream.instant === instant;
+        const changed = inputStream.lastChangedInstant === instant;
 
         inputs[k] = {
           value: (nodeRec.nodeDef.inputs[k].tempo === 'event') ? (changed ? inputStream.latestValue : undefined) : inputStream.latestValue,
