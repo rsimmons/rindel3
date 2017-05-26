@@ -80,4 +80,15 @@ export default [
       patcher.addConnection(multId, 'audioBuffer', amId, 'audioBuffer');
     },
   },
+
+  {
+    name: 'count mouse clicks',
+    run: (patcher) => {
+      const mcId = patcher.addNode(nodeDefs.mouseClick);
+      const ecId = patcher.addNode(nodeDefs.eventCount);
+      const ssId = patcher.addNode(nodeDefs.showString);
+      patcher.addConnection(mcId, 'click', ecId, 'events');
+      patcher.addConnection(ecId, 'count', ssId, 'v');
+    },
+  },
 ]

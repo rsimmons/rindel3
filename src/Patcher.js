@@ -74,16 +74,15 @@ export default class Patcher {
       }
     };
 
-    // TODO: can we do this without a closure?
-    const setState = (newState) => {
-      // TODO: implement
-    };
-
     // Build context object
     const context = {
       setOutputs,
       state: null,
-      setState,
+      // TODO: can we define setState without a closure?
+      setState: (newState) => {
+        // TODO: Do we want to immediately reflect state update to nodes? Perhaps there is no harm
+        context.state = newState;
+      },
       transient: null,
     };
 

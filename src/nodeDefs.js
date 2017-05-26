@@ -82,6 +82,35 @@ export const mouseDown = {
   },
 };
 
+export const mouseClick = {
+  inputs: {},
+  outputs: {
+    click: {tempo: 'event'},
+  },
+
+  create: (context) => {
+    const onClick = (e) => {
+      context.setOutputs({
+        click: null,
+      });
+    };
+
+    document.addEventListener('click', onClick);
+
+    context.transient = {
+      onClick
+    };
+  },
+
+  update: (context, inputs) => {
+    // Nothing to do here
+  },
+
+  destroy: (context) => {
+    document.removeEventListener('click', context.transient.onClick);
+  },
+};
+
 // TODO: Should we hide it if input coords are undefined?
 export const redSquare = {
   inputs: {
@@ -163,6 +192,31 @@ export const animationTime = {
     cancelAnimationFrame(context.transient.reqId);
   },
 };
+
+export const eventCount = {
+  inputs: {
+    events: {tempo: 'event'},
+  },
+  outputs: {
+    count: {tempo: 'step'},
+  },
+
+  create: (context) => {
+    context.setState({count: 0});
+    context.setOutputs({count: 0});
+  },
+
+  update: (context, inputs) => {
+    // TODO: assert that events changed?
+    const newCount = context.state.count + 1;
+    context.setState({count: newCount});
+    context.setOutputs({count: newCount});
+  },
+
+  destroy: (context) => {
+    // Nothing to do here
+  },
+}
 
 export const audioManager = {
   inputs: {
