@@ -8,9 +8,4 @@ export default class Stream {
     this.latestValue = newValue;
     this.lastChangedInstant = instant;
   }
-
-  copyFrom(otherStream) {
-    this.latestValue = otherStream.latestValue;
-    this.lastChangedInstant = otherStream.lastChangedInstant;
-  }
 }
