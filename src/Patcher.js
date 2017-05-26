@@ -191,10 +191,17 @@ export default class Patcher {
         const inputStream = nodeRec.inputs[k].stream;
         const changed = inputStream.lastChangedInstant === instant;
 
-        inputs[k] = {
-          value: (nodeRec.nodeDef.inputs[k].tempo === 'event') ? (changed ? inputStream.latestValue : undefined) : inputStream.latestValue,
-          changed,
-        };
+        if (nodeRec.nodeDef.inputs[k].tempo === 'event') {
+          inputs[k] = {
+            value: changed ? inputStream.latestValue : undefined, // don't expose old event data
+            present: changed,
+          };
+        } else {
+          inputs[k] = {
+            value: inputStream.latestValue,
+            changed,
+          };
+        }
       }
       if (!nodeRec.nodeDef.update) {
         throw new Error('node has inputs but no update function');

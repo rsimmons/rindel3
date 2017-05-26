@@ -195,7 +195,10 @@ export const eventCount = {
   },
 
   update: (context, inputs) => {
-    // TODO: assert that events changed?
+    if (!inputs.events.present) {
+      throw new Error('internal error');
+    }
+
     const newCount = context.state.count + 1;
     context.setState({count: newCount});
     context.setOutputs({count: newCount});
@@ -251,7 +254,9 @@ export const audioManager = {
       throw new Error('received input when not rendering');
     }
 
-    // TODO: assert that we've received an audioBuffer event
+    if (!inputs.audioBuffer.present) {
+      throw new Error('internal error');
+    }
 
     if (inputs.audioBuffer.value.length !== context.transient.BUFFER_SIZE) {
       throw new Error('receive audio buffer of wrong size');
@@ -275,7 +280,9 @@ export const noise = {
   },
 
   update: (context, inputs) => {
-    // TODO: assert that we received renderAudio event?
+    if (!inputs.renderAudio.present) {
+      throw new Error('internal error');
+    }
 
     const frames = inputs.renderAudio.value;
     const audioBuffer = new Float32Array(frames);
@@ -299,7 +306,7 @@ export const boolToAudioGate = {
   },
 
   update: (context, inputs) => {
-    if (inputs.renderAudio.changed) {
+    if (inputs.renderAudio.present) {
       const frames = inputs.renderAudio.value;
       const audioBuffer = new Float32Array(frames);
       audioBuffer.fill(inputs.on.value ? 1 : 0);
@@ -322,7 +329,7 @@ export const multiplier = {
   },
 
   update: (context, inputs) => {
-    if (!inputs.renderAudio.changed) {
+    if (!inputs.renderAudio.present) {
       throw new Error('received input audio without render event');
     }
 
