@@ -86,10 +86,12 @@ export default class Patcher {
       transient: null,
     };
 
-    // Instantiate node
+    // Instantiate node if it has a create method
     // NOTE: This doesn't actually return anything, create() calls
     //  functions in context to set outputs, store state, etc.
-    nodeDef.create(context);
+    if (nodeDef.create) {
+      nodeDef.create(context);
+    }
 
     // Make record in map
     this.nodeMap.set(nid, {
@@ -144,7 +146,9 @@ export default class Patcher {
   clear() {
     // Destroy all nodes (many require cleanup)
     for (const [nid, node] of this.nodeMap) {
-      node.nodeDef.destroy(node.context);
+      if (node.nodeDef.destroy) {
+        node.nodeDef.destroy(node.context);
+      }
     }
 
     this.nodeMap.clear();
@@ -191,6 +195,9 @@ export default class Patcher {
           value: (nodeRec.nodeDef.inputs[k].tempo === 'event') ? (changed ? inputStream.latestValue : undefined) : inputStream.latestValue,
           changed,
         };
+      }
+      if (!nodeRec.nodeDef.update) {
+        throw new Error('node has inputs but no update function');
       }
       nodeRec.nodeDef.update(nodeRec.context, inputs);
     }

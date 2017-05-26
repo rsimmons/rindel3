@@ -30,10 +30,6 @@ export const mousePos = {
     });
   },
 
-  update: (context, inputs) => {
-    // Nothing to do here
-  },
-
   destroy: (context) => {
     document.removeEventListener('mousemove', context.transient.onMouseMove);
   },
@@ -72,10 +68,6 @@ export const mouseDown = {
     });
   },
 
-  update: (context, inputs) => {
-    // Nothing to do here
-  },
-
   destroy: (context) => {
     document.removeEventListener('mousedown', context.transient.onMouseDown);
     document.removeEventListener('mouseup', context.transient.onMouseUp);
@@ -100,10 +92,6 @@ export const mouseClick = {
     context.transient = {
       onClick
     };
-  },
-
-  update: (context, inputs) => {
-    // Nothing to do here
   },
 
   destroy: (context) => {
@@ -212,10 +200,6 @@ export const eventCount = {
     context.setState({count: newCount});
     context.setOutputs({count: newCount});
   },
-
-  destroy: (context) => {
-    // Nothing to do here
-  },
 }
 
 export const audioManager = {
@@ -290,9 +274,6 @@ export const noise = {
     audioBuffer: {tempo: 'event'},
   },
 
-  create: (context) => {
-  },
-
   update: (context, inputs) => {
     // TODO: assert that we received renderAudio event?
 
@@ -306,9 +287,6 @@ export const noise = {
       audioBuffer,
     });
   },
-
-  destroy: (context) => {
-  },
 };
 
 export const boolToAudioGate = {
@@ -318,9 +296,6 @@ export const boolToAudioGate = {
   },
   outputs: {
     audioBuffer: {tempo: 'event'},
-  },
-
-  create: (context) => {
   },
 
   update: (context, inputs) => {
@@ -334,9 +309,6 @@ export const boolToAudioGate = {
       });
     }
   },
-
-  destroy: (context) => {
-  },
 };
 
 export const multiplier = {
@@ -347,9 +319,6 @@ export const multiplier = {
   },
   outputs: {
     audioBuffer: {tempo: 'event'},
-  },
-
-  create: (context) => {
   },
 
   update: (context, inputs) => {
@@ -373,8 +342,5 @@ export const multiplier = {
     context.setOutputs({
       audioBuffer,
     });
-  },
-
-  destroy: (context) => {
   },
 }
