@@ -19,7 +19,9 @@ for (const prog of testPrograms) {
   (() => {
     anchorElem.addEventListener('click', (e) => {
       e.preventDefault();
-      startProgram(prog);
+      setTimeout(() => { // start program with delay so it doesn't get this click event
+        startProgram(prog);
+      }, 0);
     });
   })();
 
