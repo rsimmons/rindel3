@@ -1,18 +1,18 @@
-import Patcher from './Patcher';
-import testPrograms from './testPrograms';
+import DynamicRuntime from '../../dynamic-runtime';
+import programs from './programs';
 
-const patcher = new Patcher();
+const runtime = new DynamicRuntime();
 
 const programListElem = document.getElementById('program-list');
 
 const startProgram = (program) => {
   // Clear any previous patch
-  patcher.clear();
+  runtime.clear();
 
-  program.run(patcher);
+  program.run(runtime);
 }
 
-for (const prog of testPrograms) {
+for (const prog of programs) {
   const anchorElem = document.createElement('a');
   anchorElem.textContent = prog.name;
   anchorElem.setAttribute('href', '#');
@@ -31,4 +31,4 @@ for (const prog of testPrograms) {
   programListElem.appendChild(itemElem);
 }
 
-startProgram(testPrograms[0]);
+startProgram(programs[0]);

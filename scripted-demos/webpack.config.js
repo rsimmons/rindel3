@@ -13,7 +13,7 @@ module.exports = {
         exclude: /node_modules/,
         loader: 'babel-loader',
         options: {
-          presets: ['es2015'],
+          presets: ['babel-preset-es2015'].map(require.resolve), // needs this otherwise code loaded from other dirs will fail because it tries to load the preset relative to that other dir, not this one. fixed in upcoming babel 7
         },
       },
     ],

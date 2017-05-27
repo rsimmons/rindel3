@@ -1,5 +1,5 @@
 {
-  "name": "rindel3",
+  "name": "rindel3-scripted-demos",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
@@ -8,9 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "webpack --progress --colors --watch"
   },
-  "dependencies": {
-    "fastpriorityqueue": "^0.2.4"
-  },
+  "dependencies": {},
   "devDependencies": {
     "babel-core": "^6.24.0",
     "babel-loader": "^6.4.0",
