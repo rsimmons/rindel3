@@ -18,6 +18,7 @@ class Patcher extends Component {
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseMove = this.handleMouseMove.bind(this);
     this.handleMouseUp = this.handleMouseUp.bind(this);
+    this.handleCreateNodeBoxClose = this.handleCreateNodeBoxClose.bind(this);
   }
 
   componentWillUnmount() {
@@ -68,12 +69,10 @@ class Patcher extends Component {
       if (delta === 0) {
         // This was a click (no movement)
         if (this.state.createNodeBoxPos) {
-          // If a box is already being shown, hide it
-          this.setState({
-            createNodeBoxPos: null,
-          });
+          // If a box is already being shown, close it
+          this.closeCreateNodeBox();
         } else {
-          // If no box is shown, show it
+          // If no box is shown, show it at the click position
           this.setState({
             createNodeBoxPos: pos,
           });
@@ -86,11 +85,21 @@ class Patcher extends Component {
     }
   }
 
+  closeCreateNodeBox() {
+    this.setState({
+      createNodeBoxPos: null,
+    });
+  }
+
+  handleCreateNodeBoxClose() {
+    this.closeCreateNodeBox();
+  }
+
   render() {
     return (
       <div className="Patcher" ref={(el) => { this.rootElem = el; }} onMouseDown={this.handleMouseDown} onMouseUp={this.handleMouseUp}>
         {this.state.createNodeBoxPos &&
-          <div style={{position: 'absolute', left: this.state.createNodeBoxPos.x, top: this.state.createNodeBoxPos.y}}><CreateNodeBox width={200}/></div>
+          <div style={{position: 'absolute', left: this.state.createNodeBoxPos.x, top: this.state.createNodeBoxPos.y}}><CreateNodeBox width={200} onClose={this.handleCreateNodeBoxClose} /></div>
         }
       </div>
     );
