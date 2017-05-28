@@ -1,4 +1,4 @@
-import * as nodeDefs from '../../node-definitions';
+import * as nodeDefs from 'node-definitions';
 
 export default [
   {

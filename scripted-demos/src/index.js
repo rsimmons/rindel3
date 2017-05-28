@@ -1,4 +1,4 @@
-import DynamicRuntime from '../../dynamic-runtime';
+import DynamicRuntime from 'dynamic-runtime';
 import programs from './programs';
 
 const runtime = new DynamicRuntime();
