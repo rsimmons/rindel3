@@ -8,7 +8,7 @@
 .CreateNodeBox input {
   box-sizing: border-box;
   width: 100%;
-  font-size: 18px;
+  font-size: inherit;
   background: #444;
   color: #ccc;
   padding: 5px;
@@ -24,4 +24,9 @@
 .CreateNodeBox li {
   padding: 5px;
   border: 1px solid #777;
+}
+
+.CreateNodeBox li b {
+  color: #ccf;
+  font-weight: normal;
 }

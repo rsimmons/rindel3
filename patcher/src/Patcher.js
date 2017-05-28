@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import CreateNodeBox from './CreateNodeBox';
 import './Patcher.css';
+import NodePool from './NodePool';
 
 class Patcher extends Component {
   constructor(props) {
@@ -11,6 +12,8 @@ class Patcher extends Component {
       mouseDownPos: null,
       createNodeBoxPos: null,
     };
+
+    this.nodePool = new NodePool(); // TODO: this should probably be passed as a prop, but let's load directly for now
 
     this.mouseCaptured = false;
     this.rootElem = null;
@@ -99,7 +102,7 @@ class Patcher extends Component {
     return (
       <div className="Patcher" ref={(el) => { this.rootElem = el; }} onMouseDown={this.handleMouseDown} onMouseUp={this.handleMouseUp}>
         {this.state.createNodeBoxPos &&
-          <div style={{position: 'absolute', left: this.state.createNodeBoxPos.x, top: this.state.createNodeBoxPos.y}}><CreateNodeBox width={200} onClose={this.handleCreateNodeBoxClose} /></div>
+          <div style={{position: 'absolute', left: this.state.createNodeBoxPos.x, top: this.state.createNodeBoxPos.y}}><CreateNodeBox width={200} nodePool={this.nodePool} onClose={this.handleCreateNodeBoxClose} /></div>
         }
       </div>
     );

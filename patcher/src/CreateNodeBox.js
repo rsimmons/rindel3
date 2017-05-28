@@ -5,9 +5,14 @@ class CreateNodeBox extends Component {
   constructor(props) {
     super(props);
 
+    this.state = {
+      query: '',
+    };
+
     this.inputElem = null;
 
     this.handleKeyDown = this.handleKeyDown.bind(this);
+    this.handleInputChange = this.handleInputChange.bind(this);
   }
 
   componentDidMount() {
@@ -34,17 +39,21 @@ class CreateNodeBox extends Component {
     }
   }
 
+  handleInputChange(e) {
+    this.setState({query: e.target.value});
+  }
+
   render() {
-    const {width} = this.props;
+    const {width, nodePool} = this.props;
+    const results = nodePool.search(this.state.query);
 
     return (
       <div className="CreateNodeBox" style={{width}} onKeyDown={this.handleKeyDown}>
-        <input type="text" ref={(el) => { this.inputElem = el; }} />
+        <input type="text" ref={(el) => { this.inputElem = el; }} onChange={this.handleInputChange} />
         <ul>
-          <li>foo</li>
-          <li>bar</li>
-          <li>baz</li>
-          <li>quux</li>
+          {results.map((r) =>
+            <li key={r.node.id} dangerouslySetInnerHTML={{__html: r.formattedStr}} />
+          )}
         </ul>
       </div>
     );
