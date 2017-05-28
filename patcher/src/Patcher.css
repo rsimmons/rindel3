@@ -3,4 +3,5 @@
   background: #222;
   position: relative;
   color: white;
+  overflow: hidden;
 }
