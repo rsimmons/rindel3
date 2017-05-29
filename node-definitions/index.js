@@ -124,8 +124,8 @@ export const redSquare = {
     }
 
     const el = context.transient.squareElem;
-    el.style.left = x;
-    el.style.top = y;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
   },
 
   destroy: (context) => {
