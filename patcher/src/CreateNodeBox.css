@@ -19,11 +19,17 @@
   list-style: none;
   margin: 0;
   padding: 0;
+  max-height: 195px;
+  overflow-y: scroll;
 }
 
 .CreateNodeBox li {
   padding: 5px;
   border: 1px solid #777;
+}
+
+.CreateNodeBox li:hover {
+  background: #666;
 }
 
 .CreateNodeBox li b {

@@ -21,7 +21,8 @@ class Patcher extends Component {
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseMove = this.handleMouseMove.bind(this);
     this.handleMouseUp = this.handleMouseUp.bind(this);
-    this.handleCreateNodeBoxClose = this.handleCreateNodeBoxClose.bind(this);
+    this.handleCreateNodeBoxSelect = this.handleCreateNodeBoxSelect.bind(this);
+    this.handleCreateNodeBoxCancel = this.handleCreateNodeBoxCancel.bind(this);
   }
 
   componentWillUnmount() {
@@ -94,7 +95,12 @@ class Patcher extends Component {
     });
   }
 
-  handleCreateNodeBoxClose() {
+  handleCreateNodeBoxSelect(n) {
+    // TODO: instantiate node
+    this.closeCreateNodeBox();
+  }
+
+  handleCreateNodeBoxCancel() {
     this.closeCreateNodeBox();
   }
 
@@ -102,7 +108,7 @@ class Patcher extends Component {
     return (
       <div className="Patcher" ref={(el) => { this.rootElem = el; }} onMouseDown={this.handleMouseDown} onMouseUp={this.handleMouseUp}>
         {this.state.createNodeBoxPos &&
-          <div style={{position: 'absolute', left: this.state.createNodeBoxPos.x, top: this.state.createNodeBoxPos.y}}><CreateNodeBox width={200} nodePool={this.nodePool} onClose={this.handleCreateNodeBoxClose} /></div>
+          <div style={{position: 'absolute', left: this.state.createNodeBoxPos.x, top: this.state.createNodeBoxPos.y}}><CreateNodeBox width={200} nodePool={this.nodePool} onSelect={this.handleCreateNodeBoxSelect} onCancel={this.handleCreateNodeBoxCancel} /></div>
         }
       </div>
     );
