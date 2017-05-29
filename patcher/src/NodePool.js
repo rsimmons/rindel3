@@ -41,7 +41,6 @@ export default class NodePool {
     if (query !== '') { // TOOD: this is a hack, is query is empty, scoring is dumb
       results.sort((a, b) => (b.score - a.score));
     }
-    console.log(results);
     return results;
   }
 }
