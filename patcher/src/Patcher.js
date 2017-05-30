@@ -238,7 +238,7 @@ class Patcher extends Component {
       const toPortElem = this.portElemMap.get(toPortStr);
 
       const fromPos = portElemConnectPos(fromPortElem);
-      const toPos = portElemConnectPos(toPortElem);
+      const toPos = portElemConnectPos(toPortElem, true);
 
       ctx.strokeStyle = 'rgb(255, 255, 255)';
       ctx.lineWidth = 1;
