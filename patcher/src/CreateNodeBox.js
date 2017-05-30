@@ -52,7 +52,7 @@ class CreateNodeBox extends Component {
         <input type="text" ref={(el) => { this.inputElem = el; }} onChange={this.handleInputChange} />
         <ul>
           {results.map((r) =>
-            <li key={r.node.id} onClick={() => { this.props.onSelect(r.node.id) }} dangerouslySetInnerHTML={{__html: r.formattedStr}} />
+            <li key={r.node.id} onClick={() => { this.props.onSelect(r.node.id, r.node.def) }} dangerouslySetInnerHTML={{__html: r.formattedStr}} />
           )}
         </ul>
       </div>
