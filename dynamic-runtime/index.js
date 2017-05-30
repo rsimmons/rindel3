@@ -198,6 +198,7 @@ export default class Patcher {
     const stream = new Stream();
     stream.lastChangedInstant = this.currentInstant;
     toNode.inputs[cxn.toPort].stream = stream;
+    this.insertNodeTask(cxn.toNodeId);
 
     this.cxnMap.delete(cxnId);
   }
