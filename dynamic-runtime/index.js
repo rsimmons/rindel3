@@ -106,6 +106,33 @@ export default class Patcher {
     return nid;
   }
 
+  removeNode(nodeId) {
+    const node = this.nodeMap.get(nodeId);
+
+    // Remove any connections involving this node
+    for (const p in node.inputs) {
+      if (node.inputs[p].cxn) {
+        this.internalRemoveConnection(node.inputs[p].cxn);
+      }
+    }
+    for (const p in node.outputs) {
+      for (const cid of node.outputs[p].cxns) {
+        this.internalRemoveConnection(cid);
+      }
+    }
+
+    // Call destroy function, if present
+    if (node.nodeDef.destroy) {
+      node.nodeDef.destroy(node.context);
+    }
+
+    // Remove the node from map
+    this.nodeMap.delete(nodeId);
+
+    // Do any necessary updating
+    this.pump();
+  }
+
   addConnection(fromNodeId, fromPort, toNodeId, toPort) {
     const cid = this.nextCxnId;
     this.nextCxnId++;
@@ -157,6 +184,27 @@ export default class Patcher {
     this.cxnMap.clear();
     this.pumping = false;
     this.priorityQueue.clear();
+  }
+
+  internalRemoveConnection(cxnId) {
+    const cxn = this.cxnMap.get(cxnId);
+
+    const fromNode = this.nodeMap.get(cxn.fromNodeId);
+    const toNode = this.nodeMap.get(cxn.toNodeId);
+
+    removeSingle(fromNode.outputs[cxn.fromPort].cxns, cxnId);
+
+    toNode.inputs[cxn.toPort].cxn = null;
+    const stream = new Stream();
+    stream.lastChangedInstant = this.currentInstant;
+    toNode.inputs[cxn.toPort].stream = stream;
+
+    this.cxnMap.delete(cxnId);
+  }
+
+  removeConnection(cxnId) {
+    this.internalRemoveConnection(cxnId);
+    this.pump();
   }
 
   updateToposort() {
