@@ -9,6 +9,7 @@
 .Patcher_node {
   background: #444;
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.3);
+  user-select: none;
 }
 
 .Patcher_node-header {

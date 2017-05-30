@@ -40,6 +40,7 @@ class Patcher extends Component {
     this.handleCreateNodeBoxSelect = this.handleCreateNodeBoxSelect.bind(this);
     this.handleCreateNodeBoxCancel = this.handleCreateNodeBoxCancel.bind(this);
     this.handlePortClick = this.handlePortClick.bind(this);
+    this.handlePortDoubleClick = this.handlePortDoubleClick.bind(this);
     this.savePortElem = this.savePortElem.bind(this);
     this.handleRemoveNode = this.handleRemoveNode.bind(this);
   }
@@ -187,6 +188,11 @@ class Patcher extends Component {
     });
   }
 
+  handlePortDoubleClick(nodeId, isInput, portName) {
+    this.runtime.disconnectPort(nodeId, isInput, portName);
+    this.forceUpdate(); // since we don't keep connections in our own state, need to force to see update
+  }
+
   formatPortStr(nodeId, isInput, portName) {
     return nodeId + '|' + isInput + '|' + portName;
   }
@@ -260,7 +266,7 @@ class Patcher extends Component {
         const selected = sp && (nid === sp.nodeId) && (isInput === sp.isInput) && (p.name === sp.portName);
 
         return (
-          <div key={p.name} onClick={() => { this.handlePortClick(nid, isInput, p.name); }} ref={el => { this.savePortElem(el, nid, isInput, p.name); }} className={'Patcher_node-port' + (selected ? ' Patcher_node-port-selected' : '')}>{p.name}</div>
+          <div key={p.name} onClick={() => { this.handlePortClick(nid, isInput, p.name); }} onDoubleClick={() => { this.handlePortDoubleClick(nid, isInput, p.name); }} ref={el => { this.savePortElem(el, nid, isInput, p.name); }} className={'Patcher_node-port' + (selected ? ' Patcher_node-port-selected' : '')}>{p.name}</div>
         );
       };
 
