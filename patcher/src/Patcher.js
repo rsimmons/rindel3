@@ -244,7 +244,7 @@ class Patcher extends Component {
       const toPos = portElemConnectPos(toPortElem, true);
 
       // Place cp1 right of fromPos, cp2 left of toPos
-      const STRAIN_RELIEF = 50;
+      const STRAIN_RELIEF = 100;
       const cp1x = fromPos.x +STRAIN_RELIEF;
       const cp2x = toPos.x - STRAIN_RELIEF;
       ctx.moveTo(fromPos.x, fromPos.y);
