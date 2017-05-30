@@ -12,9 +12,6 @@ const NodeRecord = Record({
   def: null,
 });
 
-const CxnRecord = Record({
-});
-
 class Patcher extends Component {
   constructor(props) {
     super(props);
@@ -24,7 +21,6 @@ class Patcher extends Component {
       viewOffset: {x: 0, y: 0},
       createNodeBoxPos: null,
       nodeMap: new IMap(), // node id -> NodeRecord
-      cxnMap: new IMap(), // cxn id -> CxnRecord
       selectedPort: null,
     };
 
@@ -45,6 +41,7 @@ class Patcher extends Component {
     this.handleCreateNodeBoxCancel = this.handleCreateNodeBoxCancel.bind(this);
     this.handlePortClick = this.handlePortClick.bind(this);
     this.savePortElem = this.savePortElem.bind(this);
+    this.handleRemoveNode = this.handleRemoveNode.bind(this);
   }
 
   componentWillUnmount() {
@@ -178,10 +175,10 @@ class Patcher extends Component {
           return state; // ignore
         } else {
           // Tell runtime to make connection
-          const cid = this.runtime.addConnection(a.nodeId, a.portName, b.nodeId, b.portName);
+          this.runtime.addConnection(a.nodeId, a.portName, b.nodeId, b.portName);
 
-          // Clear selected port, add cxn to map
-          return {...state, selectedPort: null, cxnMap: state.cxnMap.set(cid, new CxnRecord({}))};
+          // Clear selected port
+          return {...state, selectedPort: null};
         }
       } else {
         // Set as selected port
@@ -196,6 +193,13 @@ class Patcher extends Component {
 
   savePortElem(elem, nodeId, isInput, portName) {
     this.portElemMap.set(this.formatPortStr(nodeId, isInput, portName), elem);
+  }
+
+  handleRemoveNode(nodeId) {
+    this.runtime.removeNode(nodeId);
+    this.setState((state) => {
+      return { ...state, nodeMap: state.nodeMap.delete(nodeId)};
+    });
   }
 
   updateCanvas() {
@@ -220,8 +224,7 @@ class Patcher extends Component {
 
     ctx.clearRect(0, 0, this.canvasElem.width, this.canvasElem.height);
 
-    for (const [cid, ] of this.state.cxnMap.entries()) {
-      const icxn = this.runtime.cxnMap.get(cid); // TODO: unhack this direct access
+    for (const [, icxn] of this.runtime.cxnMap) { // TODO: unhack this direct access
       const fromPortStr = this.formatPortStr(icxn.fromNodeId, false, icxn.fromPort);
       const toPortStr = this.formatPortStr(icxn.toNodeId, true, icxn.toPort);
 
@@ -263,7 +266,7 @@ class Patcher extends Component {
 
       renderedNodes.push(
         <div key={nid} className="Patcher_node" style={{position: 'absolute', left: nodeRec.position.x +  + this.state.viewOffset.x, top: nodeRec.position.y + this.state.viewOffset.y}}>
-          <div className="Patcher_node-header">{nodeRec.name}<div className="Patcher_node-header-buttons">✕</div></div>
+          <div className="Patcher_node-header">{nodeRec.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(nid); }}>✕</button></div></div>
           <div className="Patcher_node-ports">
             <div className="Patcher_node-input-ports">{inputPorts.map(p => renderPort(p, true))}</div>
             <div className="Patcher_node-output-ports">{outputPorts.map(p => renderPort(p, false))}</div>

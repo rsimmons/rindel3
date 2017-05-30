@@ -21,6 +21,16 @@
   color: #888;
 }
 
+.Patcher_node-header-buttons button {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  cursor: pointer;
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+}
+
 .Patcher_node-ports {
   margin-top: 10px;
   color: #ccc;
