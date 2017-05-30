@@ -141,14 +141,17 @@ export const showString = {
 
   create: (context) => {
     const divElem = document.createElement('div');
+    divElem.style.cssText = 'position: absolute; top: 0; right: 0; pointer-events: none; background: white; border: 1px solid red; color: black; font-size: 24px; padding: 5px';
+    divElem.textContent = '(undefined)';
     document.body.appendChild(divElem);
 
     context.transient = { divElem };
   },
 
   update: (context, inputs) => {
+    console.log('showString update');
     const v = inputs.v.value;
-    context.transient.divElem.textContent = (v === undefined) ? 'undefined' : v.toString();
+    context.transient.divElem.textContent = (v === undefined) ? '(undefined)' : v.toString();
   },
 
   destroy: (context) => {
