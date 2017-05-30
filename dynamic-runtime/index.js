@@ -112,12 +112,12 @@ export default class DynamicRuntime {
     // Remove any connections involving this node
     for (const p in node.inputs) {
       if (node.inputs[p].cxn) {
-        this.internalRemoveConnection(node.inputs[p].cxn);
+        this.internalRemoveConnection(node.inputs[p].cxn, nodeId);
       }
     }
     for (const p in node.outputs) {
       for (const cid of node.outputs[p].cxns) {
-        this.internalRemoveConnection(cid);
+        this.internalRemoveConnection(cid, nodeId);
       }
     }
 
@@ -186,7 +186,7 @@ export default class DynamicRuntime {
     this.priorityQueue.clear();
   }
 
-  internalRemoveConnection(cxnId) {
+  internalRemoveConnection(cxnId, dontUpdateNodeId) {
     const cxn = this.cxnMap.get(cxnId);
 
     const fromNode = this.nodeMap.get(cxn.fromNodeId);
@@ -198,7 +198,10 @@ export default class DynamicRuntime {
     const stream = new Stream();
     stream.lastChangedInstant = this.currentInstant;
     toNode.inputs[cxn.toPort].stream = stream;
-    this.insertNodeTask(cxn.toNodeId);
+
+    if (cxn.toNodeId !== dontUpdateNodeId) {
+      this.insertNodeTask(cxn.toNodeId);
+    }
 
     this.cxnMap.delete(cxnId);
   }
