@@ -13,7 +13,7 @@ function removeSingle(arr, val) {
   }
 }
 
-export default class Patcher {
+export default class DynamicRuntime {
   constructor() {
     this.nodeMap = new Map(); // maps nodeId -> instance record
     this.nextNodeId = 1;
