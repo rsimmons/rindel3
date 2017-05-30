@@ -63,7 +63,7 @@ export default class Patcher {
 
         // Insert PQ tasks for downstream nodes
         for (const cid of outputs[outPort].cxns) {
-          const cxn = this.cxnMap[cid];
+          const cxn = this.cxnMap.get(cid);
           const downstreamNodeId = cxn.toNodeId;
           this.insertNodeTask(downstreamNodeId);
         }
@@ -123,12 +123,12 @@ export default class Patcher {
     toNode.inputs[toPort].cxn = cid;
     toNode.inputs[toPort].stream = fromNode.outputs[fromPort].stream;
 
-    this.cxnMap[cid] = {
+    this.cxnMap.set(cid, {
       fromNodeId,
       fromPort,
       toNodeId,
       toPort,
-    };
+    });
 
     if (!this.updateToposort()) {
       // Sort failed, so need to roll back addition
@@ -141,6 +141,8 @@ export default class Patcher {
       this.insertNodeTask(toNodeId);
       this.pump();
     }
+
+    return cid;
   }
 
   clear() {
