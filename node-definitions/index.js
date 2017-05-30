@@ -258,8 +258,8 @@ export const audioManager = {
     // In other words, the emission of the renderAudio event must _synchronously_ cause us to receive an audioBuffer
     // event in response, it's like a function call.
     if (!context.transient.bufferToFill) {
-      // This shouldn't happen. We could potentially ignore it, but for now we'll throw
-      throw new Error('received input when not rendering');
+      // This means we received a buffer without having emitted a renderAudio event in same instant. Ignore it.
+      return;
     }
 
     if (!inputs.audioBuffer.present) {
@@ -339,20 +339,23 @@ export const multiplier = {
 
   update: (context, inputs) => {
     if (!inputs.renderAudio.present) {
-      throw new Error('received input audio without render event');
+      // Received input audio without render event. Ignore
+      return;
     }
 
     const frames = inputs.renderAudio.value;
-
-    // TODO: support having a or b being disconnected
-
-    if ((inputs.a.value.length !== frames) || (inputs.b.value.length !== frames)) {
-      throw new Error('input audio buffer wrong length');
-    }
-
     const audioBuffer = new Float32Array(frames);
-    for (let i = 0; i < frames; i++) {
-      audioBuffer[i] = inputs.a.value[i]*inputs.b.value[i];
+
+    if (!inputs.a.present || !inputs.b.present) {
+      audioBuffer.fill(0);
+    } else {
+      if ((inputs.a.value.length !== frames) || (inputs.b.value.length !== frames)) {
+        throw new Error('input audio buffer wrong length');
+      }
+
+      for (let i = 0; i < frames; i++) {
+        audioBuffer[i] = inputs.a.value[i]*inputs.b.value[i];
+      }
     }
 
     context.setOutputs({
