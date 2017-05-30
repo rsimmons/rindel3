@@ -21,7 +21,7 @@ class Patcher extends Component {
 
     // Positions in state are relative to patcher element
     this.state = {
-      mouseDownPos: null,
+      viewOffset: {x: 0, y: 0},
       createNodeBoxPos: null,
       nodeMap: new IMap(), // node id -> NodeRecord
       cxnMap: new IMap(), // cxn id -> CxnRecord
@@ -32,6 +32,8 @@ class Patcher extends Component {
     this.nodePool = new NodePool(); // TODO: this should probably be passed as a prop, but let's load directly for now
 
     this.mouseCaptured = false;
+    this.mouseDownPos = null;
+    this.mouseLastPos = null; // only during drag/down
     this.rootElem = null;
     this.canvasElem = null;
     this.portElemMap = new Map(); // maps special port strings to elements
@@ -81,14 +83,24 @@ class Patcher extends Component {
   handleMouseDown(e) {
     if (e.target === this.rootElem) {
       this.captureMouse();
-      this.setState({
-        mouseDownPos: this.eventRelativePosition(e.nativeEvent),
-      });
+      const pos = this.eventRelativePosition(e.nativeEvent);
+      this.mouseDownPos = pos;
+      this.mouseLastPos = pos;
       e.preventDefault();
     }
   }
 
   handleMouseMove(e) {
+    if (!this.mouseDownPos) {
+      throw new Error('internal error');
+    }
+
+    const pos = this.eventRelativePosition(e);
+    const dx = pos.x - this.mouseLastPos.x;
+    const dy = pos.y - this.mouseLastPos.y;
+    this.mouseLastPos = pos;
+
+    this.setState((state) => ({...state, viewOffset: {x: state.viewOffset.x + dx, y: state.viewOffset.y + dy}}));
   }
 
   handleMouseUp(e) {
@@ -97,7 +109,7 @@ class Patcher extends Component {
 
       const pos = this.eventRelativePosition(e);
 
-      const delta = Math.abs(pos.x - this.state.mouseDownPos.x) + Math.abs(pos.y - this.state.mouseDownPos.y);
+      const delta = Math.abs(pos.x - this.mouseDownPos.x) + Math.abs(pos.y - this.mouseDownPos.y);
       if (delta === 0) {
         // This was a click (no movement)
         if (this.state.createNodeBoxPos) {
@@ -117,9 +129,8 @@ class Patcher extends Component {
         }
       }
 
-      this.setState({
-        mouseDownPos: null,
-      });
+      this.mouseDownPos = null;
+      this.mouseLastPos = null;
     }
   }
 
@@ -251,7 +262,7 @@ class Patcher extends Component {
       };
 
       renderedNodes.push(
-        <div key={nid} className="Patcher_node" style={{position: 'absolute', left: nodeRec.position.x, top: nodeRec.position.y}}>
+        <div key={nid} className="Patcher_node" style={{position: 'absolute', left: nodeRec.position.x +  + this.state.viewOffset.x, top: nodeRec.position.y + this.state.viewOffset.y}}>
           <div className="Patcher_node-header">{nodeRec.name}<div className="Patcher_node-header-buttons">✕</div></div>
           <div className="Patcher_node-ports">
             <div className="Patcher_node-input-ports">{inputPorts.map(p => renderPort(p, true))}</div>
