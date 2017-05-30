@@ -133,6 +133,23 @@ export default class DynamicRuntime {
     this.pump();
   }
 
+  disconnectPort(nodeId, isInput, port) {
+    const node = this.nodeMap.get(nodeId);
+
+    if (isInput) {
+      if (node.inputs[port].cxn) {
+        this.internalRemoveConnection(node.inputs[port].cxn);
+      }
+    } else {
+      for (const cid of node.outputs[port].cxns) {
+        this.internalRemoveConnection(cid);
+      }
+    }
+
+    // Do any necessary updating
+    this.pump();
+  }
+
   addConnection(fromNodeId, fromPort, toNodeId, toPort) {
     const cid = this.nextCxnId;
     this.nextCxnId++;
