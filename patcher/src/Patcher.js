@@ -230,6 +230,9 @@ class Patcher extends Component {
 
     ctx.clearRect(0, 0, this.canvasElem.width, this.canvasElem.height);
 
+    ctx.strokeStyle = 'rgb(255, 255, 255)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
     for (const [, icxn] of this.runtime.cxnMap) { // TODO: unhack this direct access
       const fromPortStr = this.formatPortStr(icxn.fromNodeId, false, icxn.fromPort);
       const toPortStr = this.formatPortStr(icxn.toNodeId, true, icxn.toPort);
@@ -240,13 +243,14 @@ class Patcher extends Component {
       const fromPos = portElemConnectPos(fromPortElem);
       const toPos = portElemConnectPos(toPortElem, true);
 
-      ctx.strokeStyle = 'rgb(255, 255, 255)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
+      // Place cp1 right of fromPos, cp2 left of toPos
+      const STRAIN_RELIEF = 50;
+      const cp1x = fromPos.x +STRAIN_RELIEF;
+      const cp2x = toPos.x - STRAIN_RELIEF;
       ctx.moveTo(fromPos.x, fromPos.y);
-      ctx.lineTo(toPos.x, toPos.y);
-      ctx.stroke();
+      ctx.bezierCurveTo(cp1x, fromPos.y, cp2x, toPos.y, toPos.x, toPos.y);
     }
+    ctx.stroke();
   }
 
   render() {
