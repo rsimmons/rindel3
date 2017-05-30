@@ -221,11 +221,15 @@ export const audioManager = {
 
     const onAudioProcess = (e) => {
       context.transient.bufferToFill = e.outputBuffer.getChannelData(0);
+      context.transient.bufferFilled = false;
       context.setOutputs({
         renderAudio: BUFFER_SIZE,
       });
+      if (!context.transient.bufferFilled) {
+        // If buffer didn't get filled, fill with zeroes since old data seems to persist otherwise
+        context.transient.bufferToFill.fill(0);
+      }
       context.transient.bufferToFill = null;
-      // NOTE: If buffer didn't get filled (e.g. no input connected), that's fine
     };
 
     const scriptNode = audioContext.createScriptProcessor(BUFFER_SIZE, 0, 1); // 0 input channels, 1 output channel
@@ -237,6 +241,7 @@ export const audioManager = {
       audioContext,
       scriptNode,
       bufferToFill: null,
+      bufferFilled: false,
     };
 
     // Set initial output
@@ -263,6 +268,7 @@ export const audioManager = {
     }
 
     context.transient.bufferToFill.set(inputs.audioBuffer.value);
+    context.transient.bufferFilled = true;
   },
 
   destroy: (context) => {
