@@ -11,6 +11,7 @@
   box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.3);
   user-select: none;
   cursor: pointer;
+  width: max-content; /* prevents width from being reduced near right edge of patcher */
 }
 
 .Patcher_node-header {
