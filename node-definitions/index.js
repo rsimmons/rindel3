@@ -149,7 +149,6 @@ export const showString = {
   },
 
   update: (context, inputs) => {
-    console.log('showString update');
     const v = inputs.v.value;
     context.transient.divElem.textContent = (v === undefined) ? '(undefined)' : v.toString();
   },
