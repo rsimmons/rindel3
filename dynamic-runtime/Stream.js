@@ -1,7 +1,7 @@
 export default class Stream {
-  constructor() {
-    this.latestValue = undefined;
-    this.lastChangedInstant = undefined;
+  constructor(initialValue, initialInstant) {
+    this.latestValue = initialValue;
+    this.lastChangedInstant = initialInstant;
   }
 
   setValue(newValue, instant) {
