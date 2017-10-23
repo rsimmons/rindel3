@@ -29,7 +29,7 @@ class OutPort {
 class InPort {
   constructor(containingDefinition) {
     this.containingDefinition = containingDefinition;
-    this.connections = Set();
+    this.connection = null;
     // TODO: have a specification of the task to be performed when receiving an update
   }
 }
@@ -46,7 +46,8 @@ class Connection {
 class NativeApplication {
   constructor(nativeDefinition) {
     this.nativeDefinition = nativeDefinition;
-    // TODO: store port objects?
+    this.inPorts = new Map(); // name -> InPort
+    this.outPorts = new Map(); // name -> OutPort
   }
 }
 
@@ -75,23 +76,27 @@ class Closure {
   }
 }
 
-// Activation of a user-defined (not native) function
+// Activation of a user-defined (not native) function. This is the "internal" bookkeeping/state of the activation.
 class UserActivation {
   constructor() {
     // Maps from OutPort and InPort objects to their corresponding Stream objects for this activation
     this.outPortStream = new Map();
     this.inPortStream = new Map();
 
-    // Map from native applications (within this user-defined function) to their activations (NativeApplication -> NativeActivation)
-    this.containedNativeActivations = new Map();
+    // Map from native applications (within this user-defined function) to their activation wrappers (NativeApplication -> ApplicationWrapper)
+    //  We need this so that we can deactivate these activations if we remove the native application.
+    this.containedNativeApplicationActivationWrapper = new Map();
 
     // Map from contained definitions to their activations within the context of this activation (UserDefinition -> Set(UserActivation))
-    this.containedDefinitionActivations = new Map();
+    //  We need this so that we can "flow" changes along connections that go into inner lexical scopes.
+    this.containedDefinitionActivation = new Map();
   }
 }
 
-// Activation of a native (not user-defined) function
-class NativeActivation {
+// This provides an API to the activation of either a native or user-defined function,
+//  letting the holder push in new inputs, get callbacks on output changes, and deactivate it.
+class ActivationWrapper {
+  // TODO: implement
 }
 
 class NewDynamicRuntime {
@@ -134,36 +139,67 @@ class NewDynamicRuntime {
       containingActivation.outPortStream.set(outPort, stream);
 
       // Add an entry to the map from contained definitions to their activation sets
-      containingActivation.containedDefinitionActivations.set(definition, new Set());
+      containingActivation.containedDefinitionActivation.set(definition, new Set());
     }
 
     return definition;
   }
 
+  // Returns a ActivationWrapper
+  _activateNativeDefinition(definition) {
+    // TODO: verify that definition is a native definition?
+
+    // TODO: implement
+    // - interface with underlying native definition
+    // - return an ActivationWrapper object
+  }
+
   // containingActivation may be null if the definition does not reference any outer scopes.
-  // Return a UserActivation
+  // Returns a ActivationWrapper
   _activateUserDefinition(definition, containingActivation) {
+    // TODO: do some sanity checking on arguments:
+    // - instanceof checks
+    // - if containingActivation is null, is definition.containingDefinition null?
+    // - is containingActivation an activation of definition.containingDefinition? UserActivation might need reference to definition for this to work
+
     const activation = new UserActivation();
 
-    // TODO: fill out the activation with stuff based on the definition (activate native applications, make closures for contained definitions, etc)
+    // TODO: fill out the activation with stuff based on the definition
+    //  - activate native applications with _activateNativeApplication
+    //  - make closures for contained definitions
+    //  etc
 
     // Add the new activation to the set of _all_ activations of this definition
     definition.activations.add(activation);
 
     // Add the new activation to the set of activations of this definition within the given containing activation
-    containingActivation.containedDefinitionActivations.get(definition).add(activation);
+    containingActivation.containedDefinitionActivation.get(definition).add(activation);
 
-    return activation;
+    // TODO: create, set up and return an ActivationWrapper that interfaces with the activation
   }
 
-  _activateNativeDefinition(definition) {
-    // TODO: implement. return NativeActivation. this may involve creating Streams, hooking output callbacks
+  // Activate a native application, which is to say activate a native definition within the context of a user activation.
+  // No return value.
+  _activateNativeApplication(nativeApplication, containingActivation) {
+    assert(nativeApplication instanceof NativeApplication);
+    assert(containingActivation instanceof UserActivation);
+
+    // TODO: implement further
+    // - create streams corresponding to nativeApplication.inPorts and nativeApplication.outPorts
+    // - store streams in containingActivation
+    // - make input streams have tasks that will call update on the activation wrapper
+    // - give the activation wrapper a callback that updates the output streams and calls _flowOutPort on the changed ports
+
+    const activationWrapper = this._activateNativeDefinition(nativeApplication.nativeDefinition);
+
+    // Store the new activation in the containing activation
+    containingActivation.containedNativeApplicationActivationWrapper.set(nativeApplication, activationWrapper);
   }
 
   // Activate the given definition (native or user-defined).
   // If containingActivation is non-null, then it is the containing activation to be used for resolving references to outer scopes.
-  // The tuple of (definition, containingActivation) is effectively a closure (since activations know their parent activations).
-  activateDefinition(definition, containingActivation) {
+  // Return value is an ActivationWrapper
+  _activateDefinition(definition, containingActivation) {
     if (definition instanceof UserDefinition) {
       // definition is user-defined
       return this._activateUserDefinition(definition, containingActivation);
@@ -175,32 +211,50 @@ class NewDynamicRuntime {
     }
   }
 
+  // Activate a definition (native or user-defined) without any containing scope.
+  // A "closed" function is one with no references to outer scopes.
+  // An interactive patcher would use this to activate the "main" function definition.
+  activateClosedDefinition(definition) {
+    return this._activateDefinition(definition, null);
+  }
+
+  // Activate a closure, which is a native or user-defined function definition paired with a containing scope (activation)
+  // This would be used in the implementation of native higher-order functions (e.g. map) to activate their function-value arguments.
+  activateClosure(closure) {
+    return this._activateDefinition(closure.definition, closure.containingActivation);
+  }
+
   addNativeApplication(containingDefinition, nativeDefinition) {
-    // TODO: also create port objects? in the future they need to be dynamically created, but we could pre-create for now and store in app object
+    assert(containingDefinition instanceof UserDefinition);
     // TODO: verify that nativeDefinition is in fact a native definition?
 
     const app = new NativeApplication(nativeDefinition);
 
+    // Create port objects for the application
+    // TODO: In the future, I think these port objects will need to be created on-demand as well (for variable positional arguments)
+    for (const n in nativeDefinition.inputs) {
+      // TODO: put some sort of task specification in this inPort that references the application object
+      app.inPorts.set(n, new InPort(containingDefinition));
+    }
+    for (const n in nativeDefinition.outputs) {
+      app.outPorts.set(n, new OutPort(containingDefinition));
+    }
+
     containingDefinition.nativeApplications.add(app);
 
-    // For each current activation of the containing definition, make an activation of the native definition
-    //  and store it in the containing activation
+    // For each current activation of the containing definition, make an activation of this new native application
     for (const containingActivation of containingDefinition.activations) {
-      // Make an activation of nativeDefinition
-      const newActivation = this._activateNativeDefinition(nativeDefinition);
-
-      // Store the new activation in the containing activation
-      containingActivation.containedNativeActivations.set(app, newActivation);
+      this._activateNativeApplication(app, containingActivation);
     }
 
     return app;
   }
 
   _notifyInPort(inPort, activation) {
-    // TODO: see what task is associated with inPort, and insert it into the priority queue
+    // TODO: see what task (template) is associated with inPort, and insert it into the priority queue (for this activation)
   }
 
-  // Propagate value change along the given connection within the context of the given activation.
+  // Propagate value change along the given connection within the context of the given activation (at the source/out side).
   // TODO: We could use this same function to flow an undefined when we disconnect a connection. Could take an optional "value override" parameter
   _flowConnection(cxn, activation) {
     // Since a connection may go into a contained definition, flowing a connection (within the context of a single activation)
@@ -227,6 +281,14 @@ class NewDynamicRuntime {
     }
   }
 
+  // Propagate value change from the given outPort/activation (which corresponds to a specific stream) along any outgoing connections.
+  // NOTE: We take a OutPort+UserActivation rather than Stream because we need the OutPort to find connections.
+  _flowOutPort(outPort, activation) {
+    for (const cxn of outPort.connections) {
+      this._flowConnection(cxn, activation);
+    }
+  }
+
   // Figure out the series of nested definitions that we need to enter to get from outPort to inPort.
   //  Return an array of definition objects. If outPort and inPort are in same scope, then the array
   //  will be empty.
@@ -243,6 +305,14 @@ class NewDynamicRuntime {
 
   // NOTE: This returns a path if valid, otherwise returns null
   _validateConnection(outPort, inPort) {
+    assert(outPort instanceof OutPort);
+    assert(inPort instanceof InPort);
+
+    // inPort can't already have a connection
+    if (inPort.connection) {
+      return null;
+    }
+
     const path = _computeDefinitionPath(outPort, inPort);
     if (!path) {
       return null;
@@ -267,6 +337,8 @@ class NewDynamicRuntime {
 
     const cxn = new Connection(outPort, inPort, path);
 
+    outPort.connections.add(cxn);
+    inPort.connection = cxn;
     this.connections.add(cxn);
 
     // "Flow" the connection for all activations of the definition containing outPort.
