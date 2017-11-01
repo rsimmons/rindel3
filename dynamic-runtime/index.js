@@ -20,15 +20,17 @@ function assert(v) {
 }
 
 class OutPort {
-  constructor(containingDefinition) {
+  constructor(containingDefinition, tempo) {
     this.containingDefinition = containingDefinition;
+    this.tempo = tempo;
     this.connections = new Set();
   }
 }
 
 class InPort {
-  constructor(containingDefinition) {
+  constructor(containingDefinition, tempo) {
     this.containingDefinition = containingDefinition;
+    this.tempo = tempo;
     this.connection = null;
     // TODO: have a specification of the task to be performed when receiving an update
   }
@@ -96,8 +98,10 @@ class UserActivation {
   }
 }
 
-// This provides an API to the activation of either a native or user-defined function,
+// This provides an inteface to control the activation of either a native or user-defined function,
 //  letting the holder push in new inputs and deactivate it.
+//  update(inputs): takes a Map from port name to {value, changed} (step-tempo always present whether changed or not)
+//  destroy(): deactivates the activation, freeing up any resources and ensuring that no further output callbacks are made
 class ActivationWrapper {
   constructor(onUpdate, onDestroy) {
     // We directly assign these callbacks to properties. There's no need to bind them since they don't need to access "this".
@@ -128,7 +132,7 @@ export default class NewDynamicRuntime {
 
   // Create a new (initially empty) user-defined function definition, contained within the given containingDefinition.
   addContainedUserDefinition(containingDefinition) {
-    const outPort = new OutPort(containingDefinition); // this port represents the output of the function-value of the new definition
+    const outPort = new OutPort(containingDefinition, 'step'); // this port represents the output of the function-value of the new definition
 
     const definition = new UserDefinition(containingDefinition, outPort);
 
@@ -188,24 +192,18 @@ export default class NewDynamicRuntime {
       definition.create(context);
     }
 
-    // TODO: supply initial inputs?
+    // TODO: supply initial inputs via a call to update?
 
     const onUpdate = (inputs) => {
-      // TODO: fix this input-conversion copypasta
+      // Massage inputs into the right structure
       const convertedInputs = {};
-      for (const k in nodeRec.nodeDef.inputs) {
-        const inputStream = nodeRec.inputs[k].stream;
-        const changed = inputStream.lastChangedInstant === instant;
-
-        if (nodeRec.nodeDef.inputs[k].tempo === 'event') {
-          inputs[k] = {
-            value: changed ? inputStream.latestValue : undefined, // don't expose old event data
-            present: changed,
-          };
+      for (const k in definition.inputs) {
+        if (inputs.has(k)) {
+          convertedInputs[k] = inputs.get(k);
         } else {
-          inputs[k] = {
-            value: inputStream.latestValue,
-            changed,
+          convertedInputs[k] = {
+            value: undefined,
+            changed: false,
           };
         }
       }
@@ -353,10 +351,10 @@ export default class NewDynamicRuntime {
     // TODO: In the future, I think these port objects will need to be created on-demand as well (for variable positional arguments)
     for (const n in definition.inputs) {
       // TODO: put some sort of task template/specification in this inPort that references the application object
-      app.inPorts.set(n, new InPort(containingDefinition));
+      app.inPorts.set(n, new InPort(containingDefinition, definition.inputs[n].tempo));
     }
     for (const n in definition.outputs) {
-      app.outPorts.set(n, new OutPort(containingDefinition));
+      app.outPorts.set(n, new OutPort(containingDefinition, definition.outputs[n].tempo));
     }
 
     containingDefinition.nativeApplications.add(app);
@@ -465,8 +463,14 @@ export default class NewDynamicRuntime {
       return null;
     }
 
+    // Ports must have the same tempo
+    if (outPort.tempo !== inPort.tempo) {
+      return null;
+    }
+
     const path = this._computeDefinitionPath(outPort, inPort);
     if (!path) {
+      // If there's no path, then the connection is invalid (doesn't connect within same scope or to inner scope)
       return null;
     }
 
