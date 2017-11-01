@@ -37,15 +37,6 @@ class Patcher extends Component {
     this.rootElem = null;
     this.canvasElem = null;
     this.portElemMap = new Map(); // maps InPort or OutPort to DOM element representing the port
-
-    this.handleMouseDown = this.handleMouseDown.bind(this);
-    this.handleMouseMove = this.handleMouseMove.bind(this);
-    this.handleMouseUp = this.handleMouseUp.bind(this);
-    this.handleCreateNodeBoxSelect = this.handleCreateNodeBoxSelect.bind(this);
-    this.handleCreateNodeBoxCancel = this.handleCreateNodeBoxCancel.bind(this);
-    this.handlePortClick = this.handlePortClick.bind(this);
-    this.handlePortDoubleClick = this.handlePortDoubleClick.bind(this);
-    this.handleRemoveNode = this.handleRemoveNode.bind(this);
   }
 
   componentWillUnmount() {
@@ -81,7 +72,7 @@ class Patcher extends Component {
     this.mouseCaptured = false;
   }
 
-  handleMouseDown(e) {
+  handleMouseDown = (e) => {
     if (e.target === this.rootElem) {
       this.captureMouse();
       const pos = this.eventRelativePosition(e.nativeEvent);
@@ -91,7 +82,7 @@ class Patcher extends Component {
     }
   }
 
-  handleMouseMove(e) {
+  handleMouseMove = (e) => {
     if (!this.mouseDownPos) {
       throw new Error('internal error');
     }
@@ -104,7 +95,7 @@ class Patcher extends Component {
     this.setState((state) => ({...state, viewOffset: {x: state.viewOffset.x + dx, y: state.viewOffset.y + dy}}));
   }
 
-  handleMouseUp(e) {
+  handleMouseUp = (e) => {
     if (this.mouseCaptured) {
       this.releaseMouse();
 
@@ -141,7 +132,7 @@ class Patcher extends Component {
     });
   }
 
-  handleCreateNodeBoxSelect(nodeName, nodeDef) {
+  handleCreateNodeBoxSelect = (nodeName, nodeDef) => {
     const app = this.runtime.addNativeApplication(this.rootDefinition, nodeDef);
     this.setState((state) => {
       const position = Object.assign({}, state.createNodeBoxPos); // copy create box position
@@ -150,11 +141,11 @@ class Patcher extends Component {
     this.closeCreateNodeBox();
   }
 
-  handleCreateNodeBoxCancel() {
+  handleCreateNodeBoxCancel = () => {
     this.closeCreateNodeBox();
   }
 
-  handlePortClick(portObj, isInput) {
+  handlePortClick = (portObj, isInput) => {
     this.setState((state) => {
       if (state.selectedPort) {
         // Attempt connection between selected port and this port
@@ -191,7 +182,7 @@ class Patcher extends Component {
     });
   }
 
-  handlePortDoubleClick(portObj) {
+  handlePortDoubleClick = (portObj) => {
     this.runtime.disconnectPort(portObj);
     this.forceUpdate(); // since we don't keep connections in our own state, need to force to see update
   }
@@ -200,7 +191,7 @@ class Patcher extends Component {
     return nodeId + '|' + isInput + '|' + portName;
   }
 
-  handleRemoveNode(nodeId) {
+  handleRemoveNode = (nodeId) => {
     this.runtime.removeNode(nodeId);
     this.setState((state) => {
       return { ...state, nodeMap: state.nodeMap.delete(nodeId)};
