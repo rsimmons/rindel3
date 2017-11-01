@@ -197,7 +197,7 @@ export const eventCount = {
   },
 
   update: (context, inputs) => {
-    if (!inputs.events.present) {
+    if (!inputs.events.changed) {
       throw new Error('internal error');
     }
 
@@ -261,7 +261,7 @@ export const audioManager = {
       return;
     }
 
-    if (!inputs.audioBuffer.present) {
+    if (!inputs.audioBuffer.changed) {
       throw new Error('internal error');
     }
 
@@ -288,7 +288,7 @@ export const noise = {
   },
 
   update: (context, inputs) => {
-    if (!inputs.renderAudio.present) {
+    if (!inputs.renderAudio.changed) {
       throw new Error('internal error');
     }
 
@@ -314,7 +314,7 @@ export const boolToAudioGate = {
   },
 
   update: (context, inputs) => {
-    if (inputs.renderAudio.present) {
+    if (inputs.renderAudio.changed) {
       const frames = inputs.renderAudio.value;
       const audioBuffer = new Float32Array(frames);
       audioBuffer.fill(inputs.on.value ? 1 : 0);
@@ -337,7 +337,7 @@ export const multiplier = {
   },
 
   update: (context, inputs) => {
-    if (!inputs.renderAudio.present) {
+    if (!inputs.renderAudio.changed) {
       // Received input audio without render event. Ignore
       return;
     }
@@ -345,7 +345,7 @@ export const multiplier = {
     const frames = inputs.renderAudio.value;
     const audioBuffer = new Float32Array(frames);
 
-    if (!inputs.a.present || !inputs.b.present) {
+    if (!inputs.a.changed || !inputs.b.changed) {
       audioBuffer.fill(0);
     } else {
       if ((inputs.a.value.length !== frames) || (inputs.b.value.length !== frames)) {
