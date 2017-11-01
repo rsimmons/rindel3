@@ -5,8 +5,10 @@ import DynamicRuntime from 'dynamic-runtime';
 import './Patcher.css';
 import CreateNodeBox from './CreateNodeBox';
 import NodePool from './NodePool';
+import genUID from './uid';
 
 const NodeRecord = Record({
+  uid: null,
   name: null,
   position: null, // {x, y}
   def: null,
@@ -20,11 +22,13 @@ class Patcher extends Component {
     this.state = {
       viewOffset: {x: 0, y: 0},
       createNodeBoxPos: null,
-      nodeMap: new IMap(), // node id -> NodeRecord
+      nodeMap: new IMap(), // NativeApplication -> NodeRecord
       selectedPort: null,
     };
 
     this.runtime = new DynamicRuntime();
+    this.rootDefinition = this.runtime.addRootUserDefinition();
+    this.rootActivation = this.runtime.activateClosedDefinition(this.rootDefinition, {}, () => {});
     this.nodePool = new NodePool(); // TODO: this should probably be passed as a prop, but let's load directly for now
 
     this.mouseCaptured = false;
@@ -32,7 +36,7 @@ class Patcher extends Component {
     this.mouseLastPos = null; // only during drag/down
     this.rootElem = null;
     this.canvasElem = null;
-    this.portElemMap = new Map(); // maps special port strings to elements
+    this.portElemMap = new Map(); // maps InPort or OutPort to DOM element representing the port
 
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseMove = this.handleMouseMove.bind(this);
@@ -41,7 +45,6 @@ class Patcher extends Component {
     this.handleCreateNodeBoxCancel = this.handleCreateNodeBoxCancel.bind(this);
     this.handlePortClick = this.handlePortClick.bind(this);
     this.handlePortDoubleClick = this.handlePortDoubleClick.bind(this);
-    this.savePortElem = this.savePortElem.bind(this);
     this.handleRemoveNode = this.handleRemoveNode.bind(this);
   }
 
@@ -139,10 +142,10 @@ class Patcher extends Component {
   }
 
   handleCreateNodeBoxSelect(nodeName, nodeDef) {
-    const nid = this.runtime.addNode(nodeDef);
+    const app = this.runtime.addNativeApplication(this.rootDefinition, nodeDef);
     this.setState((state) => {
       const position = Object.assign({}, state.createNodeBoxPos); // copy create box position
-      return { ...state, nodeMap: state.nodeMap.set(nid, new NodeRecord({name: nodeName, position, def: nodeDef}))};
+      return { ...state, nodeMap: state.nodeMap.set(app, new NodeRecord({uid: genUID(), name: nodeName, position, def: nodeDef}))};
     });
     this.closeCreateNodeBox();
   }
@@ -151,12 +154,12 @@ class Patcher extends Component {
     this.closeCreateNodeBox();
   }
 
-  handlePortClick(nodeId, isInput, portName) {
+  handlePortClick(portObj, isInput) {
     this.setState((state) => {
       if (state.selectedPort) {
         // Attempt connection between selected port and this port
         let a = state.selectedPort;
-        let b = {nodeId, isInput, portName};
+        let b = {portObj, isInput};
         let invalid = false;
         if (a.isInput) {
           if (b.isInput) {
@@ -176,29 +179,25 @@ class Patcher extends Component {
           return state; // ignore
         } else {
           // Tell runtime to make connection
-          this.runtime.addConnection(a.nodeId, a.portName, b.nodeId, b.portName);
+          this.runtime.addConnection(a.portObj, b.portObj);
 
           // Clear selected port
           return {...state, selectedPort: null};
         }
       } else {
         // Set as selected port
-        return {...state, selectedPort: {nodeId, isInput, portName}};
+        return {...state, selectedPort: {portObj, isInput}};
       }
     });
   }
 
-  handlePortDoubleClick(nodeId, isInput, portName) {
-    this.runtime.disconnectPort(nodeId, isInput, portName);
+  handlePortDoubleClick(portObj) {
+    this.runtime.disconnectPort(portObj);
     this.forceUpdate(); // since we don't keep connections in our own state, need to force to see update
   }
 
   formatPortStr(nodeId, isInput, portName) {
     return nodeId + '|' + isInput + '|' + portName;
-  }
-
-  savePortElem(elem, nodeId, isInput, portName) {
-    this.portElemMap.set(this.formatPortStr(nodeId, isInput, portName), elem);
   }
 
   handleRemoveNode(nodeId) {
@@ -233,12 +232,9 @@ class Patcher extends Component {
     ctx.strokeStyle = 'rgb(255, 255, 255)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    for (const [, icxn] of this.runtime.cxnMap) { // TODO: unhack this direct access
-      const fromPortStr = this.formatPortStr(icxn.fromNodeId, false, icxn.fromPort);
-      const toPortStr = this.formatPortStr(icxn.toNodeId, true, icxn.toPort);
-
-      const fromPortElem = this.portElemMap.get(fromPortStr);
-      const toPortElem = this.portElemMap.get(toPortStr);
+    for (const icxn of this.runtime.connections) { // TODO: unhack this direct access
+      const fromPortElem = this.portElemMap.get(icxn.outPort);
+      const toPortElem = this.portElemMap.get(icxn.inPort);
 
       const fromPos = portElemConnectPos(fromPortElem);
       const toPos = portElemConnectPos(toPortElem, true);
@@ -255,31 +251,33 @@ class Patcher extends Component {
 
   render() {
     const renderedNodes = [];
-    for (const [nid, nodeRec] of this.state.nodeMap.entries()) {
+    for (const napp of this.rootDefinition.nativeApplications) {
+      const nodeRec = this.state.nodeMap.get(napp);
+
       const inputPorts = [];
       const outputPorts = [];
-      for (const p in nodeRec.def.inputs) {
-        inputPorts.push({name: p});
+      for (const [n, p] of napp.inPorts) {
+        inputPorts.push({name: n, portObj: p});
       }
-      for (const p in nodeRec.def.outputs) {
-        outputPorts.push({name: p});
+      for (const [n, p] of napp.outPorts) {
+        outputPorts.push({name: n, portObj: p});
       }
 
-      const renderPort = (p, isInput) => {
+      const renderPort = (name, portObj, isInput) => {
         const sp = this.state.selectedPort;
-        const selected = sp && (nid === sp.nodeId) && (isInput === sp.isInput) && (p.name === sp.portName);
+        const selected = sp && (sp.portObj === portObj);
 
         return (
-          <div key={p.name} onClick={() => { this.handlePortClick(nid, isInput, p.name); }} onDoubleClick={() => { this.handlePortDoubleClick(nid, isInput, p.name); }} ref={el => { this.savePortElem(el, nid, isInput, p.name); }} className={'Patcher_node-port' + (selected ? ' Patcher_node-port-selected' : '')}>{p.name}</div>
+          <div key={name} onClick={() => { this.handlePortClick(portObj, isInput); }} onDoubleClick={() => { this.handlePortDoubleClick(portObj); }} ref={el => { this.portElemMap.set(portObj, el); }} className={'Patcher_node-port' + (selected ? ' Patcher_node-port-selected' : '')}>{name}</div>
         );
       };
 
       renderedNodes.push(
-        <div key={nid} className="Patcher_node" style={{position: 'absolute', left: nodeRec.position.x +  + this.state.viewOffset.x, top: nodeRec.position.y + this.state.viewOffset.y}}>
-          <div className="Patcher_node-header">{nodeRec.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(nid); }}>✕</button></div></div>
+        <div key={nodeRec.uid} className="Patcher_node" style={{position: 'absolute', left: nodeRec.position.x +  + this.state.viewOffset.x, top: nodeRec.position.y + this.state.viewOffset.y}}>
+          <div className="Patcher_node-header">{nodeRec.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(nodeRec.uid); }}>✕</button></div></div>
           <div className="Patcher_node-ports">
-            <div className="Patcher_node-input-ports">{inputPorts.map(p => renderPort(p, true))}</div>
-            <div className="Patcher_node-output-ports">{outputPorts.map(p => renderPort(p, false))}</div>
+            <div className="Patcher_node-input-ports">{inputPorts.map(p => renderPort(p.name, p.portObj, true))}</div>
+            <div className="Patcher_node-output-ports">{outputPorts.map(p => renderPort(p.name, p.portObj, false))}</div>
           </div>
         </div>
       );
