@@ -100,7 +100,7 @@ class UserActivation {
 
 // This provides an inteface to control the activation of either a native or user-defined function,
 //  letting the holder push in new inputs and deactivate it.
-//  update(inputs): takes a Map from port name to {value, changed} (step-tempo always present whether changed or not)
+//  update(inputs): takes a Map from port name to StreamInput
 //  destroy(): deactivates the activation, freeing up any resources and ensuring that no further output callbacks are made
 class ActivationWrapper {
   constructor(onUpdate, onDestroy) {
@@ -198,14 +198,8 @@ export default class NewDynamicRuntime {
       // Massage inputs into the right structure
       const convertedInputs = {};
       for (const k in definition.inputs) {
-        if (inputs.has(k)) {
-          convertedInputs[k] = inputs.get(k);
-        } else {
-          convertedInputs[k] = {
-            value: undefined,
-            changed: false,
-          };
-        }
+        assert(inputs.has(k));
+        convertedInputs[k] = inputs.get(k);
       }
 
       definition.update(context, convertedInputs);
@@ -274,13 +268,31 @@ export default class NewDynamicRuntime {
       // Initialize stream value, flowing in if there is a connection
       if (inPort.connection) {
         this._flowInConnection(inPort.connection, containingActivation);
-      } else {
-        // If the port doesn't have a connection, then at least mark that the stream's undefinedness is valid as of this instant
-        stream.lastChangedInstant = this.currentInstant;
       }
 
       // Save the value of this input stream for supplying to our new activation below
-      initialInputs.set(n, stream.latestValue); // TODO: for event streams, only supply if instant is current?
+      if (inPort.tempo === 'step') {
+        initialInputs.set(n, {
+          value: stream.latestValue,
+          changed: true, // NOTE: By convention we always set this to true for initial inputs
+        });
+      } else if (inPort.tempo === 'event') {
+        // For event-tempo ports, we only provide a value if there is an event present (at the
+        // current instant)
+        if (stream.lastChangedInstant === this.currentInstant) {
+          initialInputs.set(n, {
+            value: stream.latestValue,
+            present: true,
+          });
+        } else {
+          initialInputs.set(n, {
+            value: undefined,
+            present: false,
+          });
+        }
+      } else {
+        assert(false);
+      }
     }
 
     const outStreams = []; // We'll use this below
@@ -371,8 +383,10 @@ export default class NewDynamicRuntime {
   }
 
   _copyStreamValue(outStream, inStream) {
-    // TODO: ensure that stream's last changed instant is less than current instant?
     // Copy the actual value downstream
+    // NOTE: The lastChangedInstant of outStream may not be the current instant,
+    // e.g. if this copying is the result of flowing a newly added connection.
+    // TODO: ensure that stream's last changed instant is less than current instant?
     inStream.setValue(outStream.latestValue, this.currentInstant);
   }
 
@@ -499,9 +513,14 @@ export default class NewDynamicRuntime {
     inPort.connection = cxn;
     this.connections.add(cxn);
 
-    // "Flow" the connection for all activations of the definition containing outPort.
-    for (const act of outPort.containingDefinition.activations) {
-      this._flowOutConnectionNotify(cxn, act);
+    // If this connection is between step-tempo ports, then "flow" the connection
+    // for all activations of the definition containing outPort.
+    // NOTE: I think it should be safe to flow the connection even the ports are event-tempo,
+    // but it is just unnecessary so this check is an optimization.
+    if (outPort.tempo === 'step') {
+      for (const act of outPort.containingDefinition.activations) {
+        this._flowOutConnectionNotify(cxn, act);
+      }
     }
   }
 
