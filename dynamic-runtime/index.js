@@ -28,10 +28,10 @@ class OutPort {
 }
 
 class InPort {
-  constructor(containingDefinition, tempo, notifyTask) {
+  constructor(containingDefinition, tempo, owner) {
     this.containingDefinition = containingDefinition;
     this.tempo = tempo;
-    this.notifyTask = notifyTask;
+    this.owner = owner;
     this.connection = null;
   }
 }
@@ -46,9 +46,9 @@ class Connection {
 
 // Within a UserDefinition, this represents the application of a native function
 class NativeApplication {
-  constructor(definition, updateTask) {
+  constructor(definition) {
     this.definition = definition;
-    this.updateTask = updateTask;
+    this.priority = undefined;
     this.inPorts = new Map(); // name -> InPort
     this.outPorts = new Map(); // name -> OutPort
   }
@@ -368,20 +368,16 @@ export default class NewDynamicRuntime {
     assert(containingDefinition instanceof UserDefinition);
     // TODO: verify that definition is in fact a native definition?
 
-    const updateTask = {
-      priority: undefined,
-      tag: 'napp',
-      nativeApplication: undefined, // NOTE: We set this below after we create the application
-    };
-
-    const app = new NativeApplication(definition, updateTask);
-
-    updateTask.nativeApplication = app;
+    const app = new NativeApplication(definition);
 
     // Create port objects for the application
     // TODO: In the future, I think these port objects will need to be created on-demand as well (for variable positional arguments)
+    const inPortsOwner = {
+      tag: 'napp',
+      nativeApplication: app,
+    };
     for (const n in definition.inputs) {
-      app.inPorts.set(n, new InPort(containingDefinition, definition.inputs[n].tempo, updateTask));
+      app.inPorts.set(n, new InPort(containingDefinition, definition.inputs[n].tempo, inPortsOwner));
     }
     for (const n in definition.outputs) {
       app.outPorts.set(n, new OutPort(containingDefinition, definition.outputs[n].tempo));
@@ -423,14 +419,26 @@ export default class NewDynamicRuntime {
   _notifyInPort(inPort, activation) {
     // See what task is associated with notifying inPort, and insert an element
     // into the priority queue, associated with this activation.
-    const task = inPort.notifyTask;
-    const priority = task.priority;
-    assert(priority !== undefined);
+    const owner = inPort.owner;
+    let priority;
+    let task;
+    switch (owner.tag) {
+      case 'napp':
+        const nativeApplication = owner.nativeApplication;
+        priority = nativeApplication.priority;
+        assert(priority !== undefined);
+        task = {
+          tag: 'napp',
+          nativeApplication,
+          activation,
+        }
+        break;
 
-    this.priorityQueue.insert(priority, {
-      task,
-      activation,
-    });
+      default:
+        assert(false);
+    }
+
+    this.priorityQueue.insert(priority, task);
 
     // Start pumping if we're not already pumping
     if (!this.pumping) {
@@ -570,7 +578,16 @@ export default class NewDynamicRuntime {
     // Make recursive call for all native applications downstream from this one
     for (const [n, outPort] of nativeApplication.outPorts) {
       for (const cxn of outPort.connections) {
-        // TODO: make recursive call for napp at downstream end of this cxn
+        const inPortOwner = cxn.inPort.owner;
+        switch (inPortOwner.tag) {
+          case 'napp':
+            // Make recursive call for native application at downstream end of this cxn
+            this._topologicalSortTraverseFromNapp(inPortOwner.nativeApplication, traversingNapps, finishedNapps, reverseResult);
+            break;
+
+          default:
+            assert(false);
+        }
       }
     }
 
@@ -614,7 +631,7 @@ export default class NewDynamicRuntime {
       }
 
       // Store the priority string
-      napp.updateTask.priority = priority;
+      napp.priority = priority;
       console.log('priority', napp, priority);
     }
   }
@@ -625,8 +642,18 @@ export default class NewDynamicRuntime {
     }
   }
 
-  _priorityQueueElemsEqual(a, b) {
-    // NOTE: I'm pretty sure it's safe to compare object idenity of tasks here
+  _priorityQueueTasksEqual(a, b) {
+    if (a.tag !== b.tag) {
+      return false;
+    }
+
+    switch (a.tag) {
+      case 'napp':
+        return (a.nativeApplication === b.nativeApplication) && (a.activation === b.activation);
+
+      default:
+        assert(false);
+    }
     return (a.task === b.task) && (a.activation === b.activation);
   }
 
@@ -635,20 +662,18 @@ export default class NewDynamicRuntime {
     const instant = this.currentInstant;
 
     while (!pq.isEmpty()) {
-      const elem = pq.pop();
+      const task = pq.pop();
 
       // Keep popping and discarding as long as next element is a duplicate
-      while (!pq.isEmpty() && this._priorityQueueElemsEqual(pq.peek(), elem)) {
+      while (!pq.isEmpty() && this._priorityQueueTasksEqual(pq.peek(), task)) {
         pq.pop();
       }
 
-      const {task, activation} = elem;
-
       switch (task.tag) {
         case 'napp':
-          const nativeApp = task.nativeApplication;
-          const activationWrapper = activation.containedNativeApplicationActivationWrapper.get(nativeApp);
-          const inputs = this._gatherNativeApplicationInputs(nativeApp, activation, false);
+          const {nativeApplication, activation} = task;
+          const activationWrapper = activation.containedNativeApplicationActivationWrapper.get(nativeApplication);
+          const inputs = this._gatherNativeApplicationInputs(nativeApplication, activation, false);
           activationWrapper.update(inputs);
           break;
 
