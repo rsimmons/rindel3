@@ -33,7 +33,6 @@ class InPort {
     this.tempo = tempo;
     this.notifyTask = notifyTask;
     this.connection = null;
-    // TODO: have a specification of the task to be performed when receiving an update
   }
 }
 
@@ -116,7 +115,6 @@ export default class NewDynamicRuntime {
   constructor() {
     this.pumping = false; // is there currently a call to pump() running?
     this.priorityQueue = new PriorityQueue(); // this should be empty unless we are pumping
-    this.nappSequence = 1; // TODO: remove this hack
     this.currentInstant = 1; // before pump this is next instant, during pump it's current instant
 
     this.rootDefinitions = new Set(); // function definitions not contained by others
@@ -371,8 +369,7 @@ export default class NewDynamicRuntime {
     // TODO: verify that definition is in fact a native definition?
 
     const updateTask = {
-      // priority: undefined, // TODO: set this? or does it stay undefined?
-      priority: this.nappSequence++, // TODO: unhack and restore previous line
+      priority: undefined,
       tag: 'napp',
       nativeApplication: undefined, // NOTE: We set this below after we create the application
     };
@@ -543,6 +540,10 @@ export default class NewDynamicRuntime {
     inPort.connection = cxn;
     this.connections.add(cxn);
 
+    // Update topological sort
+    // NOTE: We could probably only do a partial/incremental update, but this is easy for now
+    this._updateTopologicalSort();
+
     // If this connection is between step-tempo ports, then "flow" the connection
     // for all activations of the definition containing outPort.
     // NOTE: I think it should be safe to flow the connection even the ports are event-tempo,
@@ -551,6 +552,76 @@ export default class NewDynamicRuntime {
       for (const act of outPort.containingDefinition.activations) {
         this._flowOutConnectionNotify(cxn, act);
       }
+    }
+  }
+
+  _topologicalSortTraverseFromNapp(nativeApplication, traversingNapps, finishedNapps, reverseResult) {
+    if (finishedNapps.has(nativeApplication)) {
+      return;
+    }
+
+    if (traversingNapps.has(nativeApplication)) {
+      // TODO: handle this differently
+      throw new Error('topological sort encountered a cycle');
+    }
+
+    traversingNapps.add(nativeApplication);
+
+    // Make recursive call for all native applications downstream from this one
+    for (const [n, outPort] of nativeApplication.outPorts) {
+      for (const cxn of outPort.connections) {
+        // TODO: make recursive call for napp at downstream end of this cxn
+      }
+    }
+
+    traversingNapps.delete(nativeApplication);
+    finishedNapps.add(nativeApplication);
+
+    // Append nativeApplication to final result list (which is in reverse order)
+    reverseResult.push(nativeApplication);
+  }
+
+  _topologicalSortTraverseFromUserDefinition(definition, traversingNapps, finishedNapps, reverseResult) {
+    for (const napp of definition.nativeApplications) {
+      this._topologicalSortTraverseFromNapp(napp, traversingNapps, finishedNapps, reverseResult);
+    }
+
+    // Make recursive call for each contained user definition
+    for (const containedDef of definition.definitions) {
+      this._topologicalSortTraverseFromUserDefinition(containedDef, traversingNapps, finishedNapps, reverseResult);
+    }
+  }
+
+  _updateTopologicalSortForRootDefinition(definition) {
+    const traversingNapps = new Set();
+    const finishedNapps = new Set();
+    const reverseResult = [];
+
+    this._topologicalSortTraverseFromUserDefinition(definition, traversingNapps, finishedNapps, reverseResult);
+
+    // Given result, assign priorities
+
+    // Figure out how long our zero-padded priority strings need to be
+    const paddedLength = (reverseResult.length - 1).toString().length;
+
+    for (let i = reverseResult.length - 1, n = 0; i >= 0; i--, n++) {
+      const napp = reverseResult[i];
+
+      // Create priority string, a zero-padded integer string, so that it will lexicographically sort
+      let priority = n.toString();
+      while (priority.length < paddedLength) {
+        priority = '0' + priority;
+      }
+
+      // Store the priority string
+      napp.updateTask.priority = priority;
+      console.log('priority', napp, priority);
+    }
+  }
+
+  _updateTopologicalSort() {
+    for (const rootDef of this.rootDefinitions) {
+      this._updateTopologicalSortForRootDefinition(rootDef);
     }
   }
 
