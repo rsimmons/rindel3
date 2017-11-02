@@ -9,7 +9,7 @@ export default class PriorityQueue {
     return this.fpq.isEmpty();
   }
 
-  // task is expected to have "priority" property that is a string
+  // element is expected to have "priority" property that is a string
   insert(priority, data) {
     this.fpq.add({priority, data});
   }

@@ -28,9 +28,10 @@ class OutPort {
 }
 
 class InPort {
-  constructor(containingDefinition, tempo) {
+  constructor(containingDefinition, tempo, notifyTask) {
     this.containingDefinition = containingDefinition;
     this.tempo = tempo;
+    this.notifyTask = notifyTask;
     this.connection = null;
     // TODO: have a specification of the task to be performed when receiving an update
   }
@@ -46,8 +47,9 @@ class Connection {
 
 // Within a UserDefinition, this represents the application of a native function
 class NativeApplication {
-  constructor(definition) {
+  constructor(definition, updateTask) {
     this.definition = definition;
+    this.updateTask = updateTask;
     this.inPorts = new Map(); // name -> InPort
     this.outPorts = new Map(); // name -> OutPort
   }
@@ -114,6 +116,7 @@ export default class NewDynamicRuntime {
   constructor() {
     this.pumping = false; // is there currently a call to pump() running?
     this.priorityQueue = new PriorityQueue(); // this should be empty unless we are pumping
+    this.nappSequence = 1; // TODO: remove this hack
     this.currentInstant = 1; // before pump this is next instant, during pump it's current instant
 
     this.rootDefinitions = new Set(); // function definitions not contained by others
@@ -245,6 +248,40 @@ export default class NewDynamicRuntime {
     // - destroy method will deactivate
   }
 
+  _gatherNativeApplicationInputs(nativeApplication, containingActivation, initial) {
+    const inputs = new Map();
+
+    for (const [n, inPort] of nativeApplication.inPorts) {
+      const stream = containingActivation.inPortStream.get(inPort);
+
+      if (inPort.tempo === 'step') {
+        inputs.set(n, {
+          value: stream.latestValue,
+           // NOTE: By convention we always set changed to true for initial inputs
+          changed: initial ? true : (stream.lastChangedInstant === this.currentInstant),
+        });
+      } else if (inPort.tempo === 'event') {
+        // For event-tempo ports, we only provide a value if there is an event present (at the
+        // current instant)
+        if (stream.lastChangedInstant === this.currentInstant) {
+          inputs.set(n, {
+            value: stream.latestValue,
+            present: true,
+          });
+        } else {
+          inputs.set(n, {
+            value: undefined,
+            present: false,
+          });
+        }
+      } else {
+        assert(false);
+      }
+    }
+
+    return inputs;
+  }
+
   // Activate a native application, which is to say activate a native definition within the context of a user activation.
   // This will create any necessary streams, "pull" in initial values along any connections to inputs, and set initial
   // values on output streams.
@@ -256,10 +293,7 @@ export default class NewDynamicRuntime {
     // Create streams corresponding to the input and output ports of the native function definition,
     //  and store the streams in the containing activation.
 
-    // For inputs we also flow in initial values along connections, if any,
-    //  and gather the values in a Map to provide as initial inputs to the application.
-    const initialInputs = new Map();
-
+    // For inputs we also flow in initial values along connections, if any.
     for (const [n, inPort] of nativeApplication.inPorts) {
       // Create the stream and store it
       const stream = new Stream();
@@ -268,30 +302,6 @@ export default class NewDynamicRuntime {
       // Initialize stream value, flowing in if there is a connection
       if (inPort.connection) {
         this._flowInConnection(inPort.connection, containingActivation);
-      }
-
-      // Save the value of this input stream for supplying to our new activation below
-      if (inPort.tempo === 'step') {
-        initialInputs.set(n, {
-          value: stream.latestValue,
-          changed: true, // NOTE: By convention we always set this to true for initial inputs
-        });
-      } else if (inPort.tempo === 'event') {
-        // For event-tempo ports, we only provide a value if there is an event present (at the
-        // current instant)
-        if (stream.lastChangedInstant === this.currentInstant) {
-          initialInputs.set(n, {
-            value: stream.latestValue,
-            present: true,
-          });
-        } else {
-          initialInputs.set(n, {
-            value: undefined,
-            present: false,
-          });
-        }
-      } else {
-        assert(false);
       }
     }
 
@@ -302,6 +312,9 @@ export default class NewDynamicRuntime {
       containingActivation.outPortStream.set(outPort, stream);
       outStreams.push(stream);
     }
+
+    // Gather initial inputs from streams
+    const initialInputs = this._gatherNativeApplicationInputs(nativeApplication, containingActivation, true);
 
     // Create onOutputChange callback that sets/flows the changed output streams
     const onOutputChange = (changedOutputs) => {
@@ -357,13 +370,21 @@ export default class NewDynamicRuntime {
     assert(containingDefinition instanceof UserDefinition);
     // TODO: verify that definition is in fact a native definition?
 
-    const app = new NativeApplication(definition);
+    const updateTask = {
+      // priority: undefined, // TODO: set this? or does it stay undefined?
+      priority: this.nappSequence++, // TODO: unhack and restore previous line
+      tag: 'napp',
+      nativeApplication: undefined, // NOTE: We set this below after we create the application
+    };
+
+    const app = new NativeApplication(definition, updateTask);
+
+    updateTask.nativeApplication = app;
 
     // Create port objects for the application
     // TODO: In the future, I think these port objects will need to be created on-demand as well (for variable positional arguments)
     for (const n in definition.inputs) {
-      // TODO: put some sort of task template/specification in this inPort that references the application object
-      app.inPorts.set(n, new InPort(containingDefinition, definition.inputs[n].tempo));
+      app.inPorts.set(n, new InPort(containingDefinition, definition.inputs[n].tempo, updateTask));
     }
     for (const n in definition.outputs) {
       app.outPorts.set(n, new OutPort(containingDefinition, definition.outputs[n].tempo));
@@ -403,7 +424,16 @@ export default class NewDynamicRuntime {
   }
 
   _notifyInPort(inPort, activation) {
-    // TODO: see what task (template) is associated with inPort, and insert it into the priority queue (for this activation)
+    // See what task is associated with notifying inPort, and insert an element
+    // into the priority queue, associated with this activation.
+    const task = inPort.notifyTask;
+    const priority = task.priority;
+    assert(priority !== undefined);
+
+    this.priorityQueue.insert(priority, {
+      task,
+      activation,
+    });
 
     // Start pumping if we're not already pumping
     if (!this.pumping) {
@@ -524,8 +554,38 @@ export default class NewDynamicRuntime {
     }
   }
 
+  _priorityQueueElemsEqual(a, b) {
+    // NOTE: I'm pretty sure it's safe to compare object idenity of tasks here
+    return (a.task === b.task) && (a.activation === b.activation);
+  }
+
   pump() {
-    // TODO: implement
+    const pq = this.priorityQueue;
+    const instant = this.currentInstant;
+
+    while (!pq.isEmpty()) {
+      const elem = pq.pop();
+
+      // Keep popping and discarding as long as next element is a duplicate
+      while (!pq.isEmpty() && this._priorityQueueElemsEqual(pq.peek(), elem)) {
+        pq.pop();
+      }
+
+      const {task, activation} = elem;
+
+      switch (task.tag) {
+        case 'napp':
+          const nativeApp = task.nativeApplication;
+          const activationWrapper = activation.containedNativeApplicationActivationWrapper.get(nativeApp);
+          const inputs = this._gatherNativeApplicationInputs(nativeApp, activation, false);
+          activationWrapper.update(inputs);
+          break;
+
+        default:
+          assert(false);
+      }
+    }
+
     this.currentInstant++;
   }
 }
