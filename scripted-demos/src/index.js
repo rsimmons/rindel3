@@ -7,7 +7,7 @@ const programListElem = document.getElementById('program-list');
 
 const startProgram = (program) => {
   // Clear any previous patch
-  runtime.clear();
+  // runtime.clear(); // TODO: bring back
 
   program.run(runtime);
 }
