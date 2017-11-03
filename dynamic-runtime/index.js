@@ -620,7 +620,6 @@ export default class DynamicRuntime {
 
       // Store the priority string
       napp.priority = priority;
-      console.log('priority', napp, priority);
     }
   }
 
