@@ -133,7 +133,7 @@ class Patcher extends Component {
   }
 
   handleCreateNodeBoxSelect = (nodeName, nodeDef) => {
-    const app = this.runtime.addNativeApplication(this.rootDefinition, nodeDef);
+    const app = this.runtime.addNativeApplication(this.rootDefinition, nodeDef, new Map());
     this.setState((state) => {
       const position = Object.assign({}, state.createNodeBoxPos); // copy create box position
       return { ...state, nodeMap: state.nodeMap.set(app, new NodeRecord({uid: genUID(), name: nodeName, position, def: nodeDef}))};

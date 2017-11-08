@@ -7,6 +7,20 @@ function assert(v) {
   }
 }
 
+function setsEqual(a, b) {
+  if (a.size !== b.size) {
+    return false;
+  }
+
+  for (const x of a) {
+    if (!b.has(x)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 class OutPort {
   constructor(containingDefinition, tempo) {
     this.containingDefinition = containingDefinition;
@@ -34,9 +48,10 @@ class Connection {
 
 // Within a UserDefinition, this represents the application of a native function
 class NativeApplication {
-  constructor(definition) {
+  constructor(definition, functionArguments) {
     this.definition = definition;
-    this.priority = undefined;
+    this.functionArguments = functionArguments; // NOTE: these are unchangeable for now
+    this.sortIndexStr = undefined;
     this.inPorts = new Map(); // name -> InPort
     this.outPorts = new Map(); // name -> OutPort
   }
@@ -44,35 +59,22 @@ class NativeApplication {
 
 // Definition of a user-defined (not native) function
 // containingDefinition is the UserDefinition that contains this one, or null if this is a root-level definition.
-// outPort will be null iff containingDefinition is null
 class UserDefinition {
-  constructor(containingDefinition, outPort) {
+  constructor(containingDefinition) {
     this.containingDefinition = containingDefinition;
-    this.outPort = outPort;
 
-    this.definitions = new Set();
-    this.nativeApplications = new Set();
+    this.containedDefinitions = new Set();
+    this.definitionUsedByApplications = new Map(); // map from UserDefinition (in this or outer scope) to the Set of local NativeApplications that make use of it (take it as a "function argument")
+    this.nativeApplications = new Set(); // These are kept in topological sort order
 
     // All activations of this definition (UserActivation instances)
     this.activations = new Set();
   }
 }
 
-// Combination of a function definition and a containing activation (outer scope).
-//  The containingActivation could be null if the definition is not contained in another definition.
-class Closure {
-  constructor(definition, containingActivation) {
-    this.definition = definition;
-    this.containingActivation = containingActivation;
-  }
-}
-
 // Activation of a user-defined (not native) function. This is the "internal" bookkeeping/state of the activation.
 class UserActivation {
-  // containingActivation is the activation of our containing lexical scope (definition)
   constructor(containingActivation) {
-    this.containingActivation = containingActivation;
-
     // Maps from OutPort and InPort objects to their corresponding Stream objects for this activation
     this.outPortStream = new Map();
     this.inPortStream = new Map();
@@ -80,10 +82,6 @@ class UserActivation {
     // Map from native applications (within this user-defined function) to their activation wrappers (NativeApplication -> ApplicationWrapper)
     //  We need this so that we can deactivate these activations if we remove the native application.
     this.containedNativeApplicationActivationWrapper = new Map();
-
-    // Map from contained definitions to their activations within the context of this activation (UserDefinition -> Set(UserActivation))
-    //  We need this so that we can "flow" changes along connections that go into inner lexical scopes.
-    this.containedDefinitionActivation = new Map();
   }
 }
 
@@ -121,35 +119,16 @@ export default class DynamicRuntime {
 
   // Create a new (initially empty) user-defined function definition, contained within the given containingDefinition.
   addContainedUserDefinition(containingDefinition) {
-    const outPort = new OutPort(containingDefinition, 'step'); // this port represents the output of the function-value of the new definition
+    const definition = new UserDefinition(containingDefinition);
 
-    const definition = new UserDefinition(containingDefinition, outPort);
-
-    containingDefinition.definitions.add(definition);
-
-    // Update all activations of the containing definition
-    for (const containingActivation of containingDefinition.activations) {
-      // Make closure with definition and containingActivation
-      const closure = new Closure(definition, containingActivation);
-
-      // Make a stream with the closure as value
-      const stream = new Stream(closure, this.currentInstant);
-
-      // Store the closure-output stream in the containing activation, associated with the outPort
-      containingActivation.outPortStream.set(outPort, stream);
-
-      // NOTE: Since outPort was just created, it can't have any outgoing connections,
-      //  so there is no need to flow anything here.
-
-      // Add an entry to the map from contained definitions to their activation sets
-      containingActivation.containedDefinitionActivation.set(definition, new Set());
-    }
+    containingDefinition.containedDefinitions.add(definition);
+    containingDefinition.definitionUsedByApplications.set(definition, new Set());
 
     return definition;
   }
 
   // Returns a ActivationWrapper
-  _activateNativeDefinition(definition, initialInputs, onOutputChange) {
+  _activateNativeDefinition(definition, functionArguments, initialInputs, onOutputChange) {
     // TODO: verify that definition is a native definition?
 
     // This callback is just a thin wrapper that converts formats (for now) and chains to the provided onOutputChange
@@ -204,30 +183,26 @@ export default class DynamicRuntime {
     return new ActivationWrapper(onUpdate, onDestroy);
   }
 
-  // containingActivation may be null if the definition does not reference any outer scopes.
   // Returns a ActivationWrapper
-  _activateUserDefinition(definition, containingActivation, initialInputs, onOutputChange) {
+  _activateUserDefinition(definition, initialInputs, onOutputChange) {
     // TODO: do some sanity checking on arguments:
     // - instanceof checks
-    // - if containingActivation is null, is definition.containingDefinition null?
-    // - is containingActivation an activation of definition.containingDefinition? UserActivation might need reference to definition for this to work
 
-    const activation = new UserActivation(containingActivation);
+    const activation = new UserActivation();
 
-    // TODO:
-    // - create streams for internal side of function inputs, setting initial values from initialInputs
-    // - create streams for contained definitions, setting initial (closure) values (factor this from addContainedUserDefinition?)
-    // - in topological sort order, activate native definitions (which will create streams, pulling in initial values if any)
-    // - create streams for internal side of function outputs, flow in values
-    // - if we have immediate/initial output (check function-output streams), then call onOutputChange
+    // TODO: create streams for internal side of function inputs, setting initial values from initialInputs
+
+    // Activate native applications (which will create streams, pulling in initial values if any).
+    // This needs to be done in topological sort order, but we keep them ordered so it's easy. 
+    for (const napp of definition.nativeApplications) {
+      this._activateNativeApplication(napp, activation);
+    }
+
+    // TODO: create streams for internal side of function outputs, flow in values
+    // TODO: if we have immediate/initial output (check function-output streams), then call onOutputChange
 
     // Add the new activation to the set of _all_ activations of this definition
     definition.activations.add(activation);
-
-    // Add the new activation to the set of activations of this definition within the given containing activation (if there is a containing activaton)
-    if (containingActivation) {
-      containingActivation.containedDefinitionActivation.get(definition).add(activation);
-    }
 
     // TODO: create, set up and return an ActivationWrapper that interfaces with the activation
     // - update method will do _setFlowOutPort on corresponding input ports
@@ -309,7 +284,7 @@ export default class DynamicRuntime {
       }
     };
 
-    const activationWrapper = this._activateNativeDefinition(nativeApplication.definition, initialInputs, onOutputChange);
+    const activationWrapper = this._activateNativeDefinition(nativeApplication.definition, nativeApplication.functionArguments, initialInputs, onOutputChange);
 
     // If lastChangedInstant is still undefined on any output streams, set it to current instant
     for (const stream of outStreams) {
@@ -323,17 +298,16 @@ export default class DynamicRuntime {
   }
 
   // Activate the given definition (native or user-defined).
-  // If containingActivation is non-null, then it is the containing activation to be used for resolving references to outer scopes.
   // Return value is an ActivationWrapper
-  _activateDefinition(definition, containingActivation, initialInputs, onOutputChange) {
+  _activateDefinition(definition, functionArguments, initialInputs, onOutputChange) {
     if (definition instanceof UserDefinition) {
       // definition is user-defined
-      return this._activateUserDefinition(definition, containingActivation, initialInputs, onOutputChange);
+      return this._activateUserDefinition(definition, initialInputs, onOutputChange);
     } else {
       // TODO: Have a class for NativeDefinition so we can instanceof check it here?
       // Definition is native.
       // Since native functions can't have references to outer scopes, we don't need to pass on our containingActivation argument.
-      return this._activateNativeDefinition(definition, initialInputs, onOutputChange);
+      return this._activateNativeDefinition(definition, functionArguments, initialInputs, onOutputChange);
     }
   }
 
@@ -341,22 +315,24 @@ export default class DynamicRuntime {
   // A "closed" function is one with no references to outer scopes.
   // An interactive patcher would use this to activate the "main" function definition.
   activateClosedDefinition(definition, initialInputs, onOutputChange) {
-    return this._activateDefinition(definition, null, initialInputs, onOutputChange);
+    return this._activateDefinition(definition, new Map(), initialInputs, onOutputChange);
   }
 
-  // Activate a closure, which is a native or user-defined function definition paired with a containing scope (activation)
-  // This would be used in the implementation of native higher-order functions (e.g. map) to activate their function-value arguments.
-  activateClosure(closure, initialInputs, onOutputChange) {
-    return this._activateDefinition(closure.definition, closure.containingActivation, initialInputs, onOutputChange);
-  }
-
-  addNativeApplication(containingDefinition, definition) {
+  addNativeApplication(containingDefinition, definition, functionArguments) {
     assert(!this.pumping);
 
     assert(containingDefinition instanceof UserDefinition);
     // TODO: verify that definition is in fact a native definition?
 
-    const app = new NativeApplication(definition);
+    // Validate functionArguments parameter
+    for (const [n, def] of functionArguments) {
+      assert(n in definition.functionParameters); // can only provide args matching parameters
+      if (def !== undefined) {
+        // TODO: assert that def is either native or a user definition with a common parent
+      }
+    }
+
+    const app = new NativeApplication(definition, functionArguments);
 
     // Create port objects for the application
     // TODO: In the future, I think these port objects will need to be created on-demand as well (for variable positional arguments)
@@ -372,6 +348,14 @@ export default class DynamicRuntime {
     }
 
     containingDefinition.nativeApplications.add(app);
+
+    // Track function arguments used by this application so that we may send in values from outer
+    // scopes if needed.
+    for (const def of functionArguments.values()) {
+      if (def) {
+        containingDefinition.definitionUsedByApplications.get(def).add(app);
+      }
+    }
 
     // For each current activation of the containing definition, make an activation of this new native application
     for (const containingActivation of containingDefinition.activations) {
@@ -413,7 +397,7 @@ export default class DynamicRuntime {
     switch (owner.tag) {
       case 'napp':
         const nativeApplication = owner.nativeApplication;
-        priority = nativeApplication.priority;
+        priority = nativeApplication.sortIndexStr;
         assert(priority !== undefined);
         task = {
           tag: 'napp',
@@ -551,6 +535,29 @@ export default class DynamicRuntime {
     }
   }
 
+  _topologicalSortTraverseFromOutPort(outPort, traversingNapps, finishedNapps, reverseResult) {
+    for (const cxn of outPort.connections) {
+      if (cxn.path.length > 0) {
+        // Connection has a non-empty path, which means that it goes into a sub-definition
+        // We identify the (outermost) sub-definition that the connection enters, and traverse
+        // out from its function-value outPort.
+        this._topologicalSortTraverseFromOutPort(cxn.path[0].outPort, traversingNapps, finishedNapps, reverseResult);
+      } else {
+        // Connection has empty path, which means that it goes to another port in this same scope
+        const inPortOwner = cxn.inPort.owner;
+        switch (inPortOwner.tag) {
+          case 'napp':
+            // Traverse from each native application at downstream end of this cxn
+            this._topologicalSortTraverseFromNapp(inPortOwner.nativeApplication, traversingNapps, finishedNapps, reverseResult);
+            break;
+
+          default:
+            assert(false);
+        }
+      }
+    }
+  }
+
   _topologicalSortTraverseFromNapp(nativeApplication, traversingNapps, finishedNapps, reverseResult) {
     if (finishedNapps.has(nativeApplication)) {
       return;
@@ -563,20 +570,9 @@ export default class DynamicRuntime {
 
     traversingNapps.add(nativeApplication);
 
-    // Make recursive call for all native applications downstream from this one
+    // Traverse from each output port of this native application
     for (const [n, outPort] of nativeApplication.outPorts) {
-      for (const cxn of outPort.connections) {
-        const inPortOwner = cxn.inPort.owner;
-        switch (inPortOwner.tag) {
-          case 'napp':
-            // Make recursive call for native application at downstream end of this cxn
-            this._topologicalSortTraverseFromNapp(inPortOwner.nativeApplication, traversingNapps, finishedNapps, reverseResult);
-            break;
-
-          default:
-            assert(false);
-        }
-      }
+      this._topologicalSortTraverseFromOutPort(outPort, traversingNapps, finishedNapps, reverseResult);
     }
 
     traversingNapps.delete(nativeApplication);
@@ -586,46 +582,50 @@ export default class DynamicRuntime {
     reverseResult.push(nativeApplication);
   }
 
-  _topologicalSortTraverseFromUserDefinition(definition, traversingNapps, finishedNapps, reverseResult) {
-    for (const napp of definition.nativeApplications) {
-      this._topologicalSortTraverseFromNapp(napp, traversingNapps, finishedNapps, reverseResult);
-    }
-
-    // Make recursive call for each contained user definition
-    for (const containedDef of definition.definitions) {
-      this._topologicalSortTraverseFromUserDefinition(containedDef, traversingNapps, finishedNapps, reverseResult);
-    }
-  }
-
-  _updateTopologicalSortForRootDefinition(definition) {
+  _updateTopologicalSortForUserDefinition(definition) {
     const traversingNapps = new Set();
     const finishedNapps = new Set();
     const reverseResult = [];
 
-    this._topologicalSortTraverseFromUserDefinition(definition, traversingNapps, finishedNapps, reverseResult);
+    for (const napp of definition.nativeApplications) {
+      this._topologicalSortTraverseFromNapp(napp, traversingNapps, finishedNapps, reverseResult);
+    }
 
     // Given result, assign priorities
 
-    // Figure out how long our zero-padded priority strings need to be
+    // Figure out how long our zero-padded sort index strings need to be
     const paddedLength = (reverseResult.length - 1).toString().length;
 
+    const reorderedNativeApplications = new Set();
     for (let i = reverseResult.length - 1, n = 0; i >= 0; i--, n++) {
       const napp = reverseResult[i];
 
-      // Create priority string, a zero-padded integer string, so that it will lexicographically sort
-      let priority = n.toString();
-      while (priority.length < paddedLength) {
-        priority = '0' + priority;
+      reorderedNativeApplications.add(napp);
+
+      // Create sort index string, a zero-padded integer string, so that it will lexicographically sort
+      let sortIndexStr = n.toString();
+      while (sortIndexStr.length < paddedLength) {
+        sortIndexStr = '0' + sortIndexStr;
       }
 
-      // Store the priority string
-      napp.priority = priority;
+      // Store the sort index string
+      napp.sortIndexStr = sortIndexStr;
+    }
+
+    // Replace the definition's native applications set with our new, reordered one.
+    // Sanity check that the sets have the same elements
+    assert(setsEqual(reorderedNativeApplications, definition.nativeApplications));
+    definition.nativeApplications = reorderedNativeApplications;
+
+    // Make recursive call to update each contained definition
+    for (const containedDef of definition.containedDefinitions) {
+      this._updateTopologicalSortForUserDefinition(containedDef);
     }
   }
 
   _updateTopologicalSort() {
     for (const rootDef of this.rootDefinitions) {
-      this._updateTopologicalSortForRootDefinition(rootDef);
+      this._updateTopologicalSortForUserDefinition(rootDef);
     }
   }
 
