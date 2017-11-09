@@ -3,6 +3,7 @@
   "workspaces": [
     "dynamic-runtime",
     "patcher",
-    "node-definitions"
+    "node-definitions",
+    "scripted-demos"
   ]
 }
