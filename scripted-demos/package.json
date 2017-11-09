@@ -8,7 +8,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "webpack --progress --colors --watch"
   },
-  "dependencies": {},
+  "dependencies": {
+    "dynamic-runtime": "0.1.0",
+    "node-definitions": "0.1.0"
+  },
   "devDependencies": {
     "babel-core": "^6.24.0",
     "babel-loader": "^6.4.0",

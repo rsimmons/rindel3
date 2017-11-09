@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "workspaces": [
+    "dynamic-runtime",
+    "patcher",
+    "node-definitions"
+  ]
+}
