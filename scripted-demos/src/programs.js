@@ -4,12 +4,12 @@ export default [
   {
     name: 'follow mouse',
     run: (runtime) => {
-      const root = runtime.addRootUserDefinition();
-      const mpId = runtime.addNativeApplication(root, nodeDefs.mousePos);
-      const rsId = runtime.addNativeApplication(root, nodeDefs.redSquare);
-      runtime.addConnection(mpId.outPorts.get('x'), rsId.inPorts.get('x'));
-      runtime.addConnection(mpId.outPorts.get('y'), rsId.inPorts.get('y'));
-      runtime.activateClosedDefinition(root);
+      const def = runtime.createRootUserDefinition();
+      const mpId = def.addNativeApplication(nodeDefs.mousePos, new Map());
+      const rsId = def.addNativeApplication(nodeDefs.redSquare, new Map());
+      def.addConnection(mpId.outPorts.get('x'), rsId.inPorts.get('x'));
+      def.addConnection(mpId.outPorts.get('y'), rsId.inPorts.get('y'));
+      def.activate();
     },
   },
 

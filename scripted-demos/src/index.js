@@ -1,7 +1,5 @@
-import DynamicRuntime from 'dynamic-runtime';
+import * as runtime from 'dynamic-runtime';
 import programs from './programs';
-
-const runtime = new DynamicRuntime();
 
 const programListElem = document.getElementById('program-list');
 

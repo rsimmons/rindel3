@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Map as IMap, Record } from 'immutable';
 
-import DynamicRuntime from 'dynamic-runtime';
+import { createRootUserDefinition } from 'dynamic-runtime';
 import './Patcher.css';
 import CreateNodeBox from './CreateNodeBox';
 import NodePool from './NodePool';
@@ -26,9 +26,8 @@ class Patcher extends Component {
       selectedPort: null,
     };
 
-    this.runtime = new DynamicRuntime();
-    this.rootDefinition = this.runtime.addRootUserDefinition();
-    this.rootActivation = this.runtime.activateClosedDefinition(this.rootDefinition, {}, () => {});
+    this.rootDefinition = createRootUserDefinition();
+    this.rootActivation = this.rootDefinition.activate(new Map(), () => {}, new Map());
     this.nodePool = new NodePool(); // TODO: this should probably be passed as a prop, but let's load directly for now
 
     this.mouseCaptured = false;
@@ -133,7 +132,7 @@ class Patcher extends Component {
   }
 
   handleCreateNodeBoxSelect = (nodeName, nodeDef) => {
-    const app = this.runtime.addNativeApplication(this.rootDefinition, nodeDef, new Map());
+    const app = this.rootDefinition.addNativeApplication(nodeDef, new Map());
     this.setState((state) => {
       const position = Object.assign({}, state.createNodeBoxPos); // copy create box position
       return { ...state, nodeMap: state.nodeMap.set(app, new NodeRecord({uid: genUID(), name: nodeName, position, def: nodeDef}))};
@@ -169,8 +168,7 @@ class Patcher extends Component {
         if (invalid) {
           return state; // ignore
         } else {
-          // Tell runtime to make connection
-          this.runtime.addConnection(a.portObj, b.portObj);
+          this.rootDefinition.addConnection(a.portObj, b.portObj);
 
           // Clear selected port
           return {...state, selectedPort: null};
@@ -183,7 +181,7 @@ class Patcher extends Component {
   }
 
   handlePortDoubleClick = (portObj) => {
-    this.runtime.disconnectPort(portObj);
+    this.rootDefinition.disconnectPort(portObj);
     this.forceUpdate(); // since we don't keep connections in our own state, need to force to see update
   }
 
@@ -192,7 +190,7 @@ class Patcher extends Component {
   }
 
   handleRemoveNode = (nodeId) => {
-    this.runtime.removeNode(nodeId);
+    this.rootDefinition.removeNode(nodeId);
     this.setState((state) => {
       return { ...state, nodeMap: state.nodeMap.delete(nodeId)};
     });
@@ -223,7 +221,7 @@ class Patcher extends Component {
     ctx.strokeStyle = 'rgb(255, 255, 255)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    for (const icxn of this.runtime.connections) { // TODO: unhack this direct access
+    for (const icxn of this.rootDefinition.connections) { // TODO: unhack this direct access
       const fromPortElem = this.portElemMap.get(icxn.outPort);
       const toPortElem = this.portElemMap.get(icxn.inPort);
 
