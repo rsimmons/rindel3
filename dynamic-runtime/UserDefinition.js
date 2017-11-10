@@ -111,16 +111,10 @@ export default class UserDefinition {
       }
     }
 
-    // For each current activation of the containing definition, make an activation of this new native application
+    // Let all activations of this definition know that a native application was added
     for (const act of this.activations) {
-      assert(!act.pumping); // TODO: adjust this check to use some sort of public method
-
-      act._activateNativeApplication(app);
-
-      // TODO: Might we need to pump? Not sure if it's necessary. For now, assert that there is nothing to be pumped.
-      assert(act.priorityQueue.isEmpty());
+      act.addedNativeApplication(app);
     }
-
 
     return app;
   }
@@ -195,17 +189,11 @@ export default class UserDefinition {
     this.connections.add(cxn);
 
     // Update topological sort
-    // NOTE: We could probably only do a partial/incremental update, but this is easy for now
     this._updateTopologicalSort();
 
-    // If this connection is between step-tempo ports, then "flow" the connection
-    // for all activations of the definition containing outPort.
-    // NOTE: I think it should be safe to flow the connection even the ports are event-tempo,
-    // but it is just unnecessary so this check is an optimization.
-    if (outPort.tempo === 'step') {
-      for (const act of outPort.containingDefinition.activations) {
-        act._flowConnection(cxn);
-      }
+    // Let all activations of this definition know that a connection was added
+    for (const act of this.activations) {
+      act.addedConnection(cxn);
     }
   }
 

@@ -41,6 +41,23 @@ export default class UserActivation {
     // TODO: implement
   }
 
+  // Let the activation know that a native application was added to the definition
+  addedNativeApplication(app) {
+    assert(!this.pumping); // TODO: necessary/useful?
+
+    this._activateNativeApplication(app);
+
+    // TODO: Might we need to pump? Not sure if it's necessary. For now, assert that there is nothing to be pumped.
+    assert(this.priorityQueue.isEmpty());
+  }
+
+  // Let the activation know that a connection was added to the definition
+  addedConnection(cxn) {
+    // NOTE: I think it should not be necessary to flow the connection if the ports are event-tempo,
+    // but that's not a very important optimization.
+    this._flowConnection(cxn);
+  }
+
   _gatherNativeApplicationInputs(nativeApplication, initial) {
     const inputs = new Map();
 
