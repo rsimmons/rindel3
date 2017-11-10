@@ -58,7 +58,7 @@ export default class UserDefinition {
     this.containingDefinition = containingDefinition;
 
     this.containedDefinitions = new Set();
-    this.definitionUsedByApplications = new Map(); // map from UserDefinition (in this or outer scope) to the Set of local NativeApplications that make use of it (take it as a "function argument")
+    this.definitionToUsingApplications = new Map(); // map from UserDefinition (in this or outer scope) to the Set of local NativeApplications that make use of it (take it as a "function argument")
     this.nativeApplications = new Set(); // These are kept in topological sort order
 
     this.connections = new Set(); // All connections whose out port is in this definition
@@ -72,7 +72,7 @@ export default class UserDefinition {
     const definition = new UserDefinition(containingDefinition);
 
     containingDefinition.containedDefinitions.add(definition);
-    containingDefinition.definitionUsedByApplications.set(definition, new Set());
+    containingDefinition.definitionToUsingApplications.set(definition, new Set());
 
     return definition;
   }
@@ -107,7 +107,7 @@ export default class UserDefinition {
     // scopes if needed.
     for (const def of functionArguments.values()) {
       if (def) {
-        this.definitionUsedByApplications.get(def).add(app);
+        this.definitionToUsingApplications.get(def).add(app);
       }
     }
 
@@ -201,10 +201,13 @@ export default class UserDefinition {
   _topologicalSortTraverseFromOutPort(outPort, traversingNapps, finishedNapps, reverseResult) {
     for (const cxn of outPort.connections) {
       if (cxn.path.length > 0) {
-        // Connection has a non-empty path, which means that it goes into a sub-definition
+        // Connection has a non-empty path, which means that it goes into a sub-definition.
         // We identify the (outermost) sub-definition that the connection enters, and traverse
-        // out from its function-value outPort.
-        this._topologicalSortTraverseFromOutPort(cxn.path[0].outPort, traversingNapps, finishedNapps, reverseResult);
+        // to any applications that make use of it.
+        const outermostSubdef = cxn.path[0];
+        for (const napp of this.definitionToUsingApplications.get(outermostSubdef)) {
+          this._topologicalSortTraverseFromNapp(traversingNapps, finishedNapps, reverseResult);
+        }
       } else {
         // Connection has empty path, which means that it goes to another port in this same scope
         const inPortOwner = cxn.inPort.owner;

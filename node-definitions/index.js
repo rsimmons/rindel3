@@ -198,7 +198,7 @@ export const eventCount = {
 
   update: (context, inputs) => {
     if (!inputs.events.present) {
-      throw new Error('internal error');
+      return;
     }
 
     const newCount = context.state.count + 1;

@@ -172,24 +172,22 @@ export default class UserActivation {
   //  and "notify" any input ports whose values have changed. We create the downstream Stream object if it doesn't already exist.
   // TODO: We could use this same function to flow an undefined when we disconnect a connection. Could take an optional "value override" parameter
   _flowConnection(cxn) {
-    // TODO: Handle conncetions that enter a contained definition
+    // TODO: Handle connections that enter a contained definition
     assert(cxn.path.length === 0);
 
-    // Now copy the change from the outPort stream to each inPort stream
     const outStream = this.outPortStream.get(cxn.outPort);
+    const inStream = this.inPortStream.get(cxn.inPort); // NOTE: May be undefined
 
-    const inStream = this.inPortStream.get(cxn.inPort);
-
+    // NOTE: The lastChangedInstant of outStream may not be the current instant,
+    // e.g. if this copying is the result of flowing a newly added connection.
     if (inStream) {
-      // NOTE: The lastChangedInstant of outStream may not be the current instant,
-      // e.g. if this copying is the result of flowing a newly added connection.
       // TODO: ensure that stream's last changed instant is less than current instant?
       inStream.setValue(outStream.latestValue, this.currentInstant);
     } else {
       this.inPortStream.set(cxn.inPort, new Stream(outStream.latestValue, this.currentInstant));
     }
 
-    // We don't want to trigger updating stuff when we're initializing.
+    // Don't trigger updating stuff when we're initializing.
     if (!this.initializing) {
       this._notifyInPort(cxn.inPort); // trigger anything "listening" on this port
     }
