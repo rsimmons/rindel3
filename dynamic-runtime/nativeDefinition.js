@@ -1,5 +1,16 @@
 import assert from './assert';
 
+function convertInputs(inputs, definition) {
+  const convertedInputs = {};
+
+  for (const k in definition.inputs) {
+    assert(inputs.has(k));
+    convertedInputs[k] = inputs.get(k);
+  }
+
+  return convertedInputs;
+}
+
 export function activateNativeDefinition(definition, initialInputs, onOutputChange, functionArguments) {
   // This callback is just a thin wrapper that converts formats (for now) and chains to the provided onOutputChange
   const setOutputs = (changedOutputs) => {
@@ -30,17 +41,14 @@ export function activateNativeDefinition(definition, initialInputs, onOutputChan
     definition.create(context);
   }
 
-  // TODO: supply initial inputs via a call to update?
+  // Supply initial inputs via a call to update
+  // TODO: This is janky, we should change how definitions work to pass this in create
+  if (definition.update) {
+    definition.update(context, convertInputs(initialInputs, definition));
+  }
 
   const update = (inputs) => {
-    // Massage inputs into the right structure
-    const convertedInputs = {};
-    for (const k in definition.inputs) {
-      assert(inputs.has(k));
-      convertedInputs[k] = inputs.get(k);
-    }
-
-    definition.update(context, convertedInputs);
+    definition.update(context, convertInputs(inputs, definition));
   };
 
   const destroy = () => {

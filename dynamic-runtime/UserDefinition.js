@@ -204,7 +204,7 @@ export default class UserDefinition {
     // but it is just unnecessary so this check is an optimization.
     if (outPort.tempo === 'step') {
       for (const act of outPort.containingDefinition.activations) {
-        act._flowOutConnectionNotify(cxn);
+        act._flowConnection(cxn);
       }
     }
   }

@@ -18,7 +18,9 @@ export default class UserActivation {
     //  We need this so that we can deactivate these activations if we remove the native application.
     this.containedNativeApplicationActivationControl = new Map();
 
-    // TODO: create streams for internal side of function inputs, setting initial values from initialInputs
+    this.initializing = true;
+
+    // TODO: create streams for internal side of function inputs, setting+flowing initial values from initialInputs
 
     // Activate native applications (which will create streams, pulling in initial values if any).
     // This needs to be done in topological sort order, but we keep them ordered so it's easy. 
@@ -26,8 +28,9 @@ export default class UserActivation {
       this._activateNativeApplication(napp);
     }
 
-    // TODO: create streams for internal side of function outputs, flow in values
     // TODO: if we have immediate/initial output (check function-output streams), then call onOutputChange
+
+    this.initializing = false;
   }
 
   update() {
@@ -45,15 +48,22 @@ export default class UserActivation {
       const stream = this.inPortStream.get(inPort);
 
       if (inPort.tempo === 'step') {
-        inputs.set(n, {
-          value: stream.latestValue,
-           // NOTE: By convention we always set changed to true for initial inputs
-          changed: initial ? true : (stream.lastChangedInstant === this.currentInstant),
-        });
+        // NOTE: By convention we always set changed to true for initial inputs
+        if (stream) {
+          inputs.set(n, {
+            value: stream.latestValue,
+            changed: initial ? true : (stream.lastChangedInstant === this.currentInstant),
+          });
+        } else {
+          inputs.set(n, {
+            value: undefined,
+            changed: true,
+          });
+        }
       } else if (inPort.tempo === 'event') {
         // For event-tempo ports, we only provide a value if there is an event present (at the
         // current instant)
-        if (stream.lastChangedInstant === this.currentInstant) {
+        if (stream && (stream.lastChangedInstant === this.currentInstant)) {
           inputs.set(n, {
             value: stream.latestValue,
             present: true,
@@ -73,24 +83,11 @@ export default class UserActivation {
   }
 
   // Activate a native application, which is to say activate a native definition within the context of a user activation.
-  // This will create any necessary streams, "pull" in initial values along any connections to inputs, and set initial
-  // values on output streams.
+  // This will create output streams and set their initial values.
   // No return value.
   _activateNativeApplication(nativeApplication) {
-    // Create streams corresponding to the input and output ports of the native function definition,
+    // Create streams for the output ports of the native function definition,
     //  and store the streams in the containing activation.
-
-    // For inputs we also flow in initial values along connections, if any.
-    for (const [n, inPort] of nativeApplication.inPorts) {
-      // Create the stream and store it
-      const stream = new Stream();
-      this.inPortStream.set(inPort, stream);
-
-      // Initialize stream value, flowing in if there is a connection
-      if (inPort.connection) {
-        this._flowInConnection(inPort.connection);
-      }
-    }
 
     const outStreams = []; // We'll use this below
     for (const [n, outPort] of nativeApplication.outPorts) {
@@ -123,27 +120,7 @@ export default class UserActivation {
     this.containedNativeApplicationActivationControl.set(nativeApplication, activationControl);
   }
 
-  _copyStreamValue(outStream, inStream) {
-    // Copy the actual value downstream
-    // NOTE: The lastChangedInstant of outStream may not be the current instant,
-    // e.g. if this copying is the result of flowing a newly added connection.
-    // TODO: ensure that stream's last changed instant is less than current instant?
-    inStream.setValue(outStream.latestValue, this.currentInstant);
-  }
-
-  _flowInConnection(cxn) {
-    // Find the corresponding activation of the output port by walking out a number of activations equal to the connection path length
-    let outPortActivation = this;
-    for (let i = 0; i < cxn.path.length; i++) {
-      outPortActivation = outPortActivation.containingActivation;
-    }
-
-    const outStream = outPortActivation.outPortStream.get(cxn.outPort);
-    const inStream = this.inPortStream.get(cxn.inPort);
-    this._copyStreamValue(outStream, inStream);
-  }
-
-  _notifyInPort(inPort, activation) {
+  _notifyInPort(inPort) {
     // See what task is associated with notifying inPort, and insert an element
     // into the priority queue, associated with this activation.
     const owner = inPort.owner;
@@ -173,29 +150,29 @@ export default class UserActivation {
   }
 
   // Propagate value change along the given connection within the context of the given activation (at the source/out side),
-  //  and "notify" any input ports whose values have changed.
+  //  and "notify" any input ports whose values have changed. We create the downstream Stream object if it doesn't already exist.
   // TODO: We could use this same function to flow an undefined when we disconnect a connection. Could take an optional "value override" parameter
-  _flowOutConnectionNotify(cxn) {
-    // Since a connection may go into a contained definition, flowing a connection (within the context of a single activation)
-    //  may cause the value to "fan out" to multiple activations (or none). So first, we compute the set of relevant activations
-    //  on the downstream end of the connection.
-    let downstreamActivations = [this];
-    for (const def of cxn.path) {
-      const nextDownstreamActivations = [];
-
-      for (const act of downstreamActivations) {
-        // TODO: for each activation of def (within the context of act), add it to nextDownstreamActivations
-      }
-
-      downstreamActivations = nextDownstreamActivations;
-    }
+  _flowConnection(cxn) {
+    // TODO: Handle conncetions that enter a contained definition
+    assert(cxn.path.length === 0);
 
     // Now copy the change from the outPort stream to each inPort stream
     const outStream = this.outPortStream.get(cxn.outPort);
-    for (const act of downstreamActivations) {
-      const inStream = act.inPortStream.get(cxn.inPort);
-      this._copyStreamValue(outStream, inStream);
-      this._notifyInPort(cxn.inPort, act); // trigger anything "listening" on this port
+
+    const inStream = this.inPortStream.get(cxn.inPort);
+
+    if (inStream) {
+      // NOTE: The lastChangedInstant of outStream may not be the current instant,
+      // e.g. if this copying is the result of flowing a newly added connection.
+      // TODO: ensure that stream's last changed instant is less than current instant?
+      inStream.setValue(outStream.latestValue, this.currentInstant);
+    } else {
+      this.inPortStream.set(cxn.inPort, new Stream(outStream.latestValue, this.currentInstant));
+    }
+
+    // We don't want to trigger updating stuff when we're initializing.
+    if (!this.initializing) {
+      this._notifyInPort(cxn.inPort); // trigger anything "listening" on this port
     }
   }
 
@@ -210,7 +187,7 @@ export default class UserActivation {
 
     // Flow the change
     for (const cxn of outPort.connections) {
-      this._flowOutConnectionNotify(cxn);
+      this._flowConnection(cxn);
     }
   }
 
