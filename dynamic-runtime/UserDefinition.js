@@ -147,6 +147,9 @@ export default class UserDefinition {
     assert(outPort instanceof OutPort);
     assert(inPort instanceof InPort);
 
+    // outPort must be in this definition
+    assert(outPort.containingDefinition === this);
+
     // inPort can't already have a connection
     if (inPort.connection) {
       return null;
@@ -173,8 +176,6 @@ export default class UserDefinition {
   }
 
   addConnection(outPort, inPort) {
-    assert(!this.pumping);
-
     // Validate connection (which finds its definition path as a side effect)
     const v = this._validateConnection(outPort, inPort);
     if (!v) {

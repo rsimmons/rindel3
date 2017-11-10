@@ -53,6 +53,8 @@ export default class UserActivation {
 
   // Let the activation know that a connection was added to the definition
   addedConnection(cxn) {
+    assert(!this.pumping); // TODO: necessary/useful?
+
     // NOTE: I think it should not be necessary to flow the connection if the ports are event-tempo,
     // but that's not a very important optimization.
     this._flowConnection(cxn);
