@@ -4,6 +4,6 @@
   "private": true,
   "license": "MIT",
   "dependencies": {
-    "fastpriorityqueue": "^0.2.4"
+    "fastpriorityqueue": "^0.3.1"
   }
 }

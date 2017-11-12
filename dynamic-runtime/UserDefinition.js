@@ -45,7 +45,7 @@ class NativeApplication {
   constructor(definition, functionArguments) {
     this.definition = definition;
     this.functionArguments = functionArguments; // NOTE: these are unchangeable for now
-    this.sortIndexStr = undefined;
+    this.sortIndex = undefined;
     this.inPorts = new Map(); // name -> InPort
     this.outPorts = new Map(); // name -> OutPort
   }
@@ -257,25 +257,15 @@ export default class UserDefinition {
       this._topologicalSortTraverseFromNapp(napp, traversingNapps, finishedNapps, reverseResult);
     }
 
-    // Given result, assign priorities
-
-    // Figure out how long our zero-padded sort index strings need to be
-    const paddedLength = (reverseResult.length - 1).toString().length;
-
+    // Given result, reorder set, assign indexes
     const reorderedNativeApplications = new Set();
-    for (let i = reverseResult.length - 1, n = 0; i >= 0; i--, n++) {
+    for (let i = reverseResult.length - 1, sortIndex = 0; i >= 0; i--, sortIndex++) {
       const napp = reverseResult[i];
 
       reorderedNativeApplications.add(napp);
 
-      // Create sort index string, a zero-padded integer string, so that it will lexicographically sort
-      let sortIndexStr = n.toString();
-      while (sortIndexStr.length < paddedLength) {
-        sortIndexStr = '0' + sortIndexStr;
-      }
-
-      // Store the sort index string
-      napp.sortIndexStr = sortIndexStr;
+      // Store the sort index
+      napp.sortIndex = sortIndex;
     }
 
     // Replace our native application set with our new, reordered one.

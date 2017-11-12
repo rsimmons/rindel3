@@ -148,7 +148,7 @@ export default class UserActivation {
     switch (owner.tag) {
       case 'napp':
         const nativeApplication = owner.nativeApplication;
-        priority = nativeApplication.sortIndexStr;
+        priority = nativeApplication.sortIndex;
         assert(priority !== undefined);
         task = {
           tag: 'napp',
