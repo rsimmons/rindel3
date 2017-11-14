@@ -224,7 +224,7 @@ class Patcher extends Component {
         if (invalid) {
           return state; // ignore
         } else {
-          this.rootDefinition.addConnection(a.portObj, b.portObj);
+          a.portObj.containingDefinition.addConnection(a.portObj, b.portObj);
 
           // Clear selected port
           return {...state, selectedPort: null};
