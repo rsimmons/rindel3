@@ -67,12 +67,12 @@ export default class UserDefinition {
     this.activations = new Set();
   }
 
-  // Create a new (initially empty) user-defined function definition, contained within the given containingDefinition.
-  addContainedUserDefinition(containingDefinition) {
-    const definition = new UserDefinition(containingDefinition);
+  // Create a new (initially empty) user-defined function definition, contained within this definition.
+  addContainedUserDefinition() {
+    const definition = new UserDefinition(this);
 
-    containingDefinition.containedDefinitions.add(definition);
-    containingDefinition.definitionToUsingApplications.set(definition, new Set());
+    this.containedDefinitions.add(definition);
+    this.definitionToUsingApplications.set(definition, new Set());
 
     return definition;
   }

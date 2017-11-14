@@ -12,6 +12,7 @@ const NodeRecord = Record({
   name: null,
   position: null, // {x, y}
   def: null,
+  functionArguments: null,
 });
 
 class Patcher extends Component {
@@ -21,7 +22,7 @@ class Patcher extends Component {
     // Positions in state are relative to patcher element
     this.state = {
       viewOffset: {x: 0, y: 0},
-      createNodeBoxPos: null,
+      creatingNode: null,
       nodeMap: new IMap(), // NativeApplication -> NodeRecord
       selectedPort: null,
     };
@@ -30,17 +31,16 @@ class Patcher extends Component {
     this.rootActivation = this.rootDefinition.activate(new Map(), () => {}, new Map());
     this.nodePool = new NodePool(); // TODO: this should probably be passed as a prop, but let's load directly for now
 
-    this.mouseCaptured = false;
-    this.mouseDownPos = null;
-    this.mouseLastPos = null; // only during drag/down
+    this.drag = null;
+
     this.rootElem = null;
     this.canvasElem = null;
     this.portElemMap = new Map(); // maps InPort or OutPort to DOM element representing the port
   }
 
   componentWillUnmount() {
-    if (this.mouseCaptured) {
-      this.releaseMouse();
+    if (this.drag) {
+      this.endDrag();
     }
   }
 
@@ -59,84 +59,125 @@ class Patcher extends Component {
     };
   }
 
-  captureMouse() {
+  beginDrag(mouseEvent, target) {
+    if (this.drag) {
+      throw new Error('internal error');
+    }
+
     document.addEventListener('mousemove', this.handleMouseMove);
     document.addEventListener('mouseup', this.handleMouseUp);
-    this.mouseCaptured = true;
+
+    const pos = this.eventRelativePosition(mouseEvent.nativeEvent);
+
+    this.drag = {
+      target,
+      downPos: pos,
+      lastPos: pos,
+    };
   }
 
-  releaseMouse() {
+  endDrag() {
     document.removeEventListener('mousemove', this.handleMouseMove);
     document.removeEventListener('mouseup', this.handleMouseUp);
-    this.mouseCaptured = false;
+    this.drag = null;
   }
 
-  handleMouseDown = (e) => {
-    if (e.target === this.rootElem) {
-      this.captureMouse();
-      const pos = this.eventRelativePosition(e.nativeEvent);
-      this.mouseDownPos = pos;
-      this.mouseLastPos = pos;
-      e.preventDefault();
+  handleDefinitionMouseDown = (definition, event) => {
+    if (event.target === event.currentTarget) {
+      this.beginDrag(event, {
+        kind: 'definition',
+        definition,
+      });
+      event.preventDefault();
     }
   }
 
   handleMouseMove = (e) => {
-    if (!this.mouseDownPos) {
+    if (!this.drag) {
       throw new Error('internal error');
     }
 
     const pos = this.eventRelativePosition(e);
-    const dx = pos.x - this.mouseLastPos.x;
-    const dy = pos.y - this.mouseLastPos.y;
-    this.mouseLastPos = pos;
+    const dx = pos.x - this.drag.lastPos.x;
+    const dy = pos.y - this.drag.lastPos.y;
+    this.drag.lastPos = pos;
 
     this.setState((state) => ({...state, viewOffset: {x: state.viewOffset.x + dx, y: state.viewOffset.y + dy}}));
   }
 
   handleMouseUp = (e) => {
-    if (this.mouseCaptured) {
-      this.releaseMouse();
-
+    if (this.drag) {
       const pos = this.eventRelativePosition(e);
 
-      const delta = Math.abs(pos.x - this.mouseDownPos.x) + Math.abs(pos.y - this.mouseDownPos.y);
-      if (delta === 0) {
-        // This was a click (no movement)
-        if (this.state.createNodeBoxPos) {
-          // If a box is already being shown, close it
-          this.closeCreateNodeBox();
-        } else {
-          if (this.state.selectedPort) {
-            this.setState({
-              selectedPort: null,
-            });
+      const delta = Math.abs(pos.x - this.drag.downPos.x) + Math.abs(pos.y - this.drag.downPos.y);
+
+      if (this.drag.target.kind === 'definition') {
+        if (delta === 0) {
+          // This was a click (no movement)
+          if (this.state.creatingNode) {
+            // If a box is already being shown, close it
+            this.closeCreateNodeBox();
           } else {
-            // If no box is shown, show it at the click position
-            this.setState({
-              createNodeBoxPos: pos,
-            });
+            if (this.state.selectedPort) {
+              this.setState({
+                selectedPort: null,
+              });
+            } else {
+              // If no box is shown, show it at the click position
+              this.setState({
+                creatingNode: {
+                  boxPosition: pos,
+                  definition: this.drag.target.definition,
+                },
+              });
+            }
           }
         }
       }
 
-      this.mouseDownPos = null;
-      this.mouseLastPos = null;
+      this.endDrag();
     }
   }
 
   closeCreateNodeBox() {
     this.setState({
-      createNodeBoxPos: null,
+      creatingNode: null,
     });
   }
 
   handleCreateNodeBoxSelect = (nodeName, nodeDef) => {
-    const app = this.rootDefinition.addNativeApplication(nodeDef, new Map());
+    if (!this.state.creatingNode) {
+      throw new Error('internal error');
+    }
+
+    // Look up what definition this creation is happening within
+    const definition = this.state.creatingNode.definition;
+
+    // If the definition has function parameters, created sub-definitions for each one
+    const functionArguments = new Map();
+    if (nodeDef.functionParameters) {
+      for (const n in nodeDef.functionParameters) {
+        const subdef = definition.addContainedUserDefinition();
+        functionArguments.set(n, subdef);
+      }
+    }
+
+    const app = definition.addNativeApplication(nodeDef, functionArguments);
+
     this.setState((state) => {
-      const position = Object.assign({}, state.createNodeBoxPos); // copy create box position
-      return { ...state, nodeMap: state.nodeMap.set(app, new NodeRecord({uid: genUID(), name: nodeName, position, def: nodeDef}))};
+      const position = Object.assign({}, state.creatingNode.boxPosition); // copy create box position
+
+      const nodeRec = new NodeRecord({
+        uid: genUID(),
+        name: nodeName,
+        position,
+        def: nodeDef,
+        functionArguments,
+      });
+
+      return {...state, nodeMap: state.nodeMap.set(app, nodeRec)};
     });
+
     this.closeCreateNodeBox();
   }
 
@@ -238,46 +279,62 @@ class Patcher extends Component {
     ctx.stroke();
   }
 
-  render() {
-    const renderedNodes = [];
-    for (const napp of this.rootDefinition.nativeApplications) {
-      const nodeRec = this.state.nodeMap.get(napp);
+  renderPort(name, portObj, isInput) {
+    const sp = this.state.selectedPort;
+    const selected = sp && (sp.portObj === portObj);
 
-      const inputPorts = [];
-      const outputPorts = [];
-      for (const [n, p] of napp.inPorts) {
-        inputPorts.push({name: n, portObj: p});
-      }
-      for (const [n, p] of napp.outPorts) {
-        outputPorts.push({name: n, portObj: p});
-      }
+    return (
+      <div key={name} onClick={() => { this.handlePortClick(portObj, isInput); }} onDoubleClick={() => { this.handlePortDoubleClick(portObj); }} ref={el => { this.portElemMap.set(portObj, el); }} className={'Patcher_node-port' + (selected ? ' Patcher_node-port-selected' : '')}>{name}</div>
+    );
+  }
 
-      const renderPort = (name, portObj, isInput) => {
-        const sp = this.state.selectedPort;
-        const selected = sp && (sp.portObj === portObj);
+  renderApplication(napp) {
+    const nodeRec = this.state.nodeMap.get(napp);
 
-        return (
-          <div key={name} onClick={() => { this.handlePortClick(portObj, isInput); }} onDoubleClick={() => { this.handlePortDoubleClick(portObj); }} ref={el => { this.portElemMap.set(portObj, el); }} className={'Patcher_node-port' + (selected ? ' Patcher_node-port-selected' : '')}>{name}</div>
-        );
-      };
-
-      renderedNodes.push(
-        <div key={nodeRec.uid} className="Patcher_node" style={{position: 'absolute', left: nodeRec.position.x +  + this.state.viewOffset.x, top: nodeRec.position.y + this.state.viewOffset.y}}>
-          <div className="Patcher_node-header">{nodeRec.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(nodeRec.uid); }}>✕</button></div></div>
-          <div className="Patcher_node-ports">
-            <div className="Patcher_node-input-ports">{inputPorts.map(p => renderPort(p.name, p.portObj, true))}</div>
-            <div className="Patcher_node-output-ports">{outputPorts.map(p => renderPort(p.name, p.portObj, false))}</div>
-          </div>
-        </div>
-      );
+    const inputPorts = [];
+    const outputPorts = [];
+    for (const [n, p] of napp.inPorts) {
+      inputPorts.push({name: n, portObj: p});
+    }
+    for (const [n, p] of napp.outPorts) {
+      outputPorts.push({name: n, portObj: p});
     }
 
     return (
-      <div className="Patcher" ref={(el) => { this.rootElem = el; }} onMouseDown={this.handleMouseDown} onMouseUp={this.handleMouseUp}>
+      <div key={nodeRec.uid} className="Patcher_node" style={{position: 'absolute', left: nodeRec.position.x +  + this.state.viewOffset.x, top: nodeRec.position.y + this.state.viewOffset.y}}>
+        <div className="Patcher_node-header">{nodeRec.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(nodeRec.uid); }}>✕</button></div></div>
+        <div className="Patcher_node-ports">
+          <div className="Patcher_node-input-ports">{inputPorts.map(p => this.renderPort(p.name, p.portObj, true))}</div>
+          <div className="Patcher_node-output-ports">{outputPorts.map(p => this.renderPort(p.name, p.portObj, false))}</div>
+        </div>
+        {(nodeRec.functionArguments.size > 0) &&
+          <div className="Patcher_node-inline-defs">
+            {[...nodeRec.functionArguments.entries()].map(([n, subdef]) => (
+              <div className="Patcher_node-inline-def" key={n}>
+                {this.renderDefinition(subdef)}
+              </div>
+            ))}
+          </div>
+        }
+      </div>
+    );
+  }
+
+  renderDefinition(definition) {
+    return (
+      <div className="Patcher_definition" onMouseDown={(e) => { this.handleDefinitionMouseDown(definition, e); }}>
+        {[...definition.nativeApplications].map(napp => this.renderApplication(napp))}
+      </div>
+    );
+  }
+
+  render() {
+    return (
+      <div className="Patcher" ref={(el) => { this.rootElem = el; }}>
+        {this.renderDefinition(this.rootDefinition)}
         <canvas ref={canvas => { this.canvasElem = canvas; }} />
-        <div>{renderedNodes}</div>
-        {this.state.createNodeBoxPos &&
-          <div style={{position: 'absolute', left: this.state.createNodeBoxPos.x, top: this.state.createNodeBoxPos.y}}><CreateNodeBox width={200} nodePool={this.nodePool} onSelect={this.handleCreateNodeBoxSelect} onCancel={this.handleCreateNodeBoxCancel} /></div>
+        {this.state.creatingNode &&
+          <div style={{position: 'absolute', left: this.state.creatingNode.boxPosition.x, top: this.state.creatingNode.boxPosition.y}}><CreateNodeBox width={200} nodePool={this.nodePool} onSelect={this.handleCreateNodeBoxSelect} onCancel={this.handleCreateNodeBoxCancel} /></div>
         }
       </div>
     );

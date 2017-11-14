@@ -5,6 +5,24 @@
 //   transient
 //   (don't need setTransient because it isn't managed by runtime)
 
+export const map = {
+  functionParameters: {
+    f: null,
+  },
+  inputs: {
+    arr: {tempo: 'step'},
+  },
+  outputs: {
+    arr: {tempo: 'step'},
+  },
+
+  create: (context) => {
+  },
+
+  destroy: (context) => {
+  },
+};
+
 export const mousePos = {
   inputs: {},
   outputs: {

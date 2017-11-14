@@ -1,8 +1,15 @@
 .Patcher {
+  display: flex;
   height: 100%;
+  color: white;
+  overflow: hidden;
+  position: relative;
+}
+
+.Patcher_definition {
+  flex: 1;
   background: #222;
   position: relative;
-  color: white;
   overflow: hidden;
 }
 
@@ -38,6 +45,7 @@
 .Patcher_node-ports {
   color: #ccc;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .Patcher_node-input-ports {
@@ -66,6 +74,18 @@
 .Patcher_node-port-selected {
   background: #ccc;
   color: #444;
+}
+
+.Patcher_node-inline-defs {
+  color: #ccc;
+  padding: 5px;
+}
+
+.Patcher_node-inline-def {
+  min-width: 400px;
+  min-height: 300px;
+  border: 2px solid #ccc;
+  display: flex;
 }
 
 .Patcher canvas {
