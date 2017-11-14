@@ -128,6 +128,18 @@ export default class UserDefinition {
     return activation;
   }
 
+  // Return a generator that iterates over all connections contained within this definition
+  // or any contained definitions (recursively)
+  * deepConnections() {
+    for (const cxn of this.connections) {
+      yield cxn;
+    }
+
+    for (const def of this.containedDefinitions) {
+      yield* def.deepConnections();
+    }
+  }
+
   // Figure out the series of nested definitions that we need to enter to get from outPort to inPort.
   //  Return an array of definition objects. If outPort and inPort are in same scope, then the array
   //  will be empty.

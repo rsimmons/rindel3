@@ -287,9 +287,9 @@ class Patcher extends Component {
     ctx.strokeStyle = 'rgb(255, 255, 255)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    for (const icxn of this.rootDefinition.connections) { // TODO: unhack this direct access
-      const fromPortElem = this.portElemMap.get(icxn.outPort);
-      const toPortElem = this.portElemMap.get(icxn.inPort);
+    for (const cxn of this.rootDefinition.deepConnections()) {
+      const fromPortElem = this.portElemMap.get(cxn.outPort);
+      const toPortElem = this.portElemMap.get(cxn.inPort);
 
       const fromPos = portElemConnectPos(fromPortElem);
       const toPos = portElemConnectPos(toPortElem, true);
