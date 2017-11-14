@@ -41,7 +41,10 @@ class Patcher extends Component {
 
     this.rootElem = null;
     this.canvasElem = null;
+
+    // TODO: Can we avoid leaks/bookkeeping by making these WeakMaps?
     this.portElemMap = new Map(); // maps InPort or OutPort to DOM element representing the port
+    this.defPositioningElemMap = new Map(); // maps UserDefinition to DOM element
   }
 
   componentWillUnmount() {
@@ -56,6 +59,18 @@ class Patcher extends Component {
 
   componentDidUpdate() {
     this.updateCanvas();
+  }
+
+  elemRelativePosition(elem) {
+    let x = 0, y = 0;
+
+    while (elem !== this.rootElem) {
+      x += elem.offsetLeft;
+      y += elem.offsetTop;
+      elem = elem.offsetParent;
+    }
+
+    return {x, y};
   }
 
   eventRelativePosition(event) {
@@ -176,10 +191,10 @@ class Patcher extends Component {
 
     this.setState((state) => {
       const boxPos = state.creatingNode.boxPosition;
-      const viewOffset = state.defExtra.get(definition).viewOffset;
+      const offset = this.elemRelativePosition(this.defPositioningElemMap.get(definition));
       const position = {
-        x: boxPos.x - viewOffset.x,
-        y: boxPos.y - viewOffset.y,
+        x: boxPos.x - offset.x,
+        y: boxPos.y - offset.y,
       };
 
       const appExtra = new AppExtra({
@@ -257,17 +272,12 @@ class Patcher extends Component {
     this.canvasElem.height = this.canvasElem.offsetHeight;
 
     const portElemConnectPos = (elem, isInput) => {
-      let x = isInput ? 0 : elem.offsetWidth;
-      let y = 0.5*elem.offsetHeight;
+      const pos = this.elemRelativePosition(elem);
 
-      let e = elem;
-      while (e !== this.rootElem) {
-        x += e.offsetLeft;
-        y += e.offsetTop;
-        e = e.offsetParent;
-      }
-
-      return {x, y};
+      return {
+        x: pos.x + (isInput ? 0 : elem.offsetWidth),
+        y: pos.y + 0.5*elem.offsetHeight,
+      };
     }
 
     const ctx = this.canvasElem.getContext('2d');
@@ -340,7 +350,7 @@ class Patcher extends Component {
 
     return (
       <div className="Patcher_definition" onMouseDown={(e) => { this.handleDefinitionMouseDown(definition, e); }}>
-        <div style={{position: 'absolute', left: viewOffset.x, top: viewOffset.y, background: 'transparent'}}>
+        <div style={{position: 'absolute', left: viewOffset.x, top: viewOffset.y, background: 'transparent'}} ref={el => { this.defPositioningElemMap.set(definition, el); }}>
           {[...definition.nativeApplications].map(napp => this.renderApplication(napp))}
         </div>
       </div>
