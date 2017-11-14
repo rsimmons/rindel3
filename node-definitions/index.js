@@ -5,7 +5,29 @@
 //   transient
 //   (don't need setTransient because it isn't managed by runtime)
 
-export const map = {
+export const grid = {
+  inputs: {},
+  outputs: {
+    arr: {tempo: 'step'},
+  },
+
+  create: (context) => {
+    const arr = [];
+    for (let x = 0; x < 5; x++) {
+      for (let y = 0; y < 5; y++) {
+        arr.push({
+          x: 50*x,
+          y: 50*y,
+        });
+      }
+    }
+    context.setOutputs({
+      arr,
+    });
+  },
+};
+
+export const forEach = {
   functionParameters: {
     f: null,
   },
@@ -13,7 +35,6 @@ export const map = {
     arr: {tempo: 'step'},
   },
   outputs: {
-    arr: {tempo: 'step'},
   },
 
   create: (context) => {
