@@ -7,7 +7,7 @@ import CreateNodeBox from './CreateNodeBox';
 import NodePool from './NodePool';
 import genUID from './uid';
 
-const NodeRecord = Record({
+const AppExtra = Record({
   uid: null,
   name: null,
   position: null, // {x, y}
@@ -15,21 +15,27 @@ const NodeRecord = Record({
   functionArguments: null,
 });
 
+const DefExtra = Record({
+  viewOffset: null, // {x, y}
+});
+
 class Patcher extends Component {
   constructor(props) {
     super(props);
 
-    // Positions in state are relative to patcher element
-    this.state = {
-      viewOffset: {x: 0, y: 0},
-      creatingNode: null,
-      nodeMap: new IMap(), // NativeApplication -> NodeRecord
-      selectedPort: null,
-    };
-
     this.rootDefinition = createRootUserDefinition();
     this.rootActivation = this.rootDefinition.activate(new Map(), () => {}, new Map());
     this.nodePool = new NodePool(); // TODO: this should probably be passed as a prop, but let's load directly for now
+
+    // Positions in state are relative to patcher element
+    this.state = {
+      creatingNode: null,
+      appExtra: new IMap(), // NativeApplication -> AppExtra
+      defExtra: new IMap([[this.rootDefinition, new DefExtra({viewOffset: {x: 0, y: 0}})]])
+
+      , // UserDefinition -> DefExtra
+      selectedPort: null,
+    };
 
     this.drag = null;
 
@@ -102,7 +108,10 @@ class Patcher extends Component {
     const dy = pos.y - this.drag.lastPos.y;
     this.drag.lastPos = pos;
 
-    this.setState((state) => ({...state, viewOffset: {x: state.viewOffset.x + dx, y: state.viewOffset.y + dy}}));
+    if (this.drag.target.kind === 'definition') {
+      const definition = this.drag.target.definition;
+      this.setState((state) => ({...state, defExtra: state.defExtra.updateIn([definition, 'viewOffset'], vo => ({x: vo.x + dx, y: vo.y + dy}))}));
+    }
   }
 
   handleMouseUp = (e) => {
@@ -158,6 +167,7 @@ class Patcher extends Component {
     if (nodeDef.functionParameters) {
       for (const n in nodeDef.functionParameters) {
         const subdef = definition.addContainedUserDefinition();
+        this.setState(state => ({...state, defExtra: state.defExtra.set(subdef, new DefExtra({viewOffset: {x: 0, y: 0}}))}));
         functionArguments.set(n, subdef);
       }
     }
@@ -165,9 +175,14 @@ class Patcher extends Component {
     const app = definition.addNativeApplication(nodeDef, functionArguments);
 
     this.setState((state) => {
-      const position = Object.assign({}, state.creatingNode.boxPosition); // copy create box position
+      const boxPos = state.creatingNode.boxPosition;
+      const viewOffset = state.defExtra.get(definition).viewOffset;
+      const position = {
+        x: boxPos.x - viewOffset.x,
+        y: boxPos.y - viewOffset.y,
+      };
 
-      const nodeRec = new NodeRecord({
+      const appExtra = new AppExtra({
         uid: genUID(),
         name: nodeName,
         position,
@@ -175,7 +190,7 @@ class Patcher extends Component {
         functionArguments,
       });
 
-      return {...state, nodeMap: state.nodeMap.set(app, nodeRec)};
+      return {...state, appExtra: state.appExtra.set(app, appExtra)};
     });
 
     this.closeCreateNodeBox();
@@ -233,7 +248,7 @@ class Patcher extends Component {
   handleRemoveNode = (nodeId) => {
     this.rootDefinition.removeNode(nodeId);
     this.setState((state) => {
-      return { ...state, nodeMap: state.nodeMap.delete(nodeId)};
+      return { ...state, appExtra: state.appExtra.delete(nodeId)};
     });
   }
 
@@ -289,7 +304,7 @@ class Patcher extends Component {
   }
 
   renderApplication(napp) {
-    const nodeRec = this.state.nodeMap.get(napp);
+    const appExtra = this.state.appExtra.get(napp);
 
     const inputPorts = [];
     const outputPorts = [];
@@ -301,15 +316,15 @@ class Patcher extends Component {
     }
 
     return (
-      <div key={nodeRec.uid} className="Patcher_node" style={{position: 'absolute', left: nodeRec.position.x +  + this.state.viewOffset.x, top: nodeRec.position.y + this.state.viewOffset.y}}>
-        <div className="Patcher_node-header">{nodeRec.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(nodeRec.uid); }}>✕</button></div></div>
+      <div key={appExtra.uid} className="Patcher_node" style={{position: 'absolute', left: appExtra.position.x, top: appExtra.position.y}}>
+        <div className="Patcher_node-header">{appExtra.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(appExtra.uid); }}>✕</button></div></div>
         <div className="Patcher_node-ports">
           <div className="Patcher_node-input-ports">{inputPorts.map(p => this.renderPort(p.name, p.portObj, true))}</div>
           <div className="Patcher_node-output-ports">{outputPorts.map(p => this.renderPort(p.name, p.portObj, false))}</div>
         </div>
-        {(nodeRec.functionArguments.size > 0) &&
+        {(appExtra.functionArguments.size > 0) &&
           <div className="Patcher_node-inline-defs">
-            {[...nodeRec.functionArguments.entries()].map(([n, subdef]) => (
+            {[...appExtra.functionArguments.entries()].map(([n, subdef]) => (
               <div className="Patcher_node-inline-def" key={n}>
                 {this.renderDefinition(subdef)}
               </div>
@@ -321,9 +336,13 @@ class Patcher extends Component {
   }
 
   renderDefinition(definition) {
+    const viewOffset = this.state.defExtra.get(definition).viewOffset;
+
     return (
       <div className="Patcher_definition" onMouseDown={(e) => { this.handleDefinitionMouseDown(definition, e); }}>
-        {[...definition.nativeApplications].map(napp => this.renderApplication(napp))}
+        <div style={{position: 'absolute', left: viewOffset.x, top: viewOffset.y, background: 'transparent'}}>
+          {[...definition.nativeApplications].map(napp => this.renderApplication(napp))}
+        </div>
       </div>
     );
   }
