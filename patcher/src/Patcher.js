@@ -42,9 +42,9 @@ class Patcher extends Component {
     this.rootElem = null;
     this.canvasElem = null;
 
-    // TODO: Can we avoid leaks/bookkeeping by making these WeakMaps?
-    this.portElemMap = new Map(); // maps InPort or OutPort to DOM element representing the port
-    this.defPositioningElemMap = new Map(); // maps UserDefinition to DOM element
+    // We use WeakMaps here so that old keys don't need to be removed
+    this.portElemMap = new WeakMap(); // maps InPort or OutPort to DOM element representing the port
+    this.defPositioningElemMap = new WeakMap(); // maps UserDefinition to DOM element
   }
 
   componentWillUnmount() {
