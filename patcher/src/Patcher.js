@@ -181,7 +181,8 @@ class Patcher extends Component {
     const functionArguments = new Map();
     if (nodeDef.functionParameters) {
       for (const n in nodeDef.functionParameters) {
-        const subdef = definition.addContainedUserDefinition();
+        const signature = nodeDef.functionParameters[n];
+        const subdef = definition.addContainedUserDefinition(signature);
         this.setState(state => ({...state, defExtra: state.defExtra.set(subdef, new DefExtra({viewOffset: {x: 0, y: 0}}))}));
         functionArguments.set(n, subdef);
       }
@@ -326,16 +327,16 @@ class Patcher extends Component {
     }
 
     return (
-      <div key={appExtra.uid} className="Patcher_node" style={{position: 'absolute', left: appExtra.position.x, top: appExtra.position.y}}>
+      <div key={appExtra.uid} className="Patcher_node Patcher_box-shadow" style={{position: 'absolute', left: appExtra.position.x, top: appExtra.position.y}}>
         <div className="Patcher_node-header">{appExtra.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(appExtra.uid); }}>✕</button></div></div>
         <div className="Patcher_node-ports">
-          <div className="Patcher_node-input-ports">{inputPorts.map(p => this.renderPort(p.name, p.portObj, true))}</div>
-          <div className="Patcher_node-output-ports">{outputPorts.map(p => this.renderPort(p.name, p.portObj, false))}</div>
+          <div className="Patcher_input-ports-block">{inputPorts.map(p => this.renderPort(p.name, p.portObj, true))}</div>
+          <div className="Patcher_output-ports-block">{outputPorts.map(p => this.renderPort(p.name, p.portObj, false))}</div>
         </div>
         {(appExtra.functionArguments.size > 0) &&
           <div className="Patcher_node-inline-defs">
             {[...appExtra.functionArguments.entries()].map(([n, subdef]) => (
-              <div className="Patcher_node-inline-def" key={n}>
+              <div className="Patcher_node-inline-def" key={n} style={{width: 400, height: 300}}>
                 {this.renderDefinition(subdef)}
               </div>
             ))}
@@ -353,6 +354,20 @@ class Patcher extends Component {
         <div style={{position: 'absolute', left: viewOffset.x, top: viewOffset.y, background: 'transparent'}} ref={el => { this.defPositioningElemMap.set(definition, el); }}>
           {[...definition.nativeApplications].map(napp => this.renderApplication(napp))}
         </div>
+        {(definition.definitionInputs.size > 0) &&
+          <div className="Patcher_definition-ports Patcher_definition-input-ports Patcher_box-shadow">
+            <div className="Patcher_output-ports-block">
+              {[...definition.definitionInputs].map(([n, outPort]) => this.renderPort(n, {}, false))}
+            </div>
+          </div>
+        }
+        {(definition.definitionOutputs.size > 0) &&
+          <div className="Patcher_definition-ports Patcher_definition-output-ports Patcher_box-shadow">
+            <div className="Patcher_input-ports-block">
+              {[...definition.definitionOutputs].map(([n, inPort]) => this.renderPort(n, {}, true))}
+            </div>
+          </div>
+        }
       </div>
     );
   }

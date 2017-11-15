@@ -15,10 +15,13 @@
 
 .Patcher_node {
   background: #444;
-  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.3);
   user-select: none;
   cursor: pointer;
   width: max-content; /* prevents width from being reduced near right edge of patcher */
+}
+
+.Patcher_box-shadow {
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.3);
 }
 
 .Patcher_node-header {
@@ -48,21 +51,21 @@
   overflow: hidden;
 }
 
-.Patcher_node-input-ports {
+.Patcher_input-ports-block {
   float: left;
   margin-right: 10px;
 }
 
-.Patcher_node-input-ports .Patcher_node-port {
+.Patcher_input-ports-block .Patcher_node-port {
   border-left: 4px solid #888;
 }
 
-.Patcher_node-output-ports {
+.Patcher_output-ports-block {
   float: right;
   text-align: right;
 }
 
-.Patcher_node-output-ports .Patcher_node-port {
+.Patcher_output-ports-block .Patcher_node-port {
   border-right: 4px solid #888;
 }
 
@@ -77,15 +80,31 @@
 }
 
 .Patcher_node-inline-defs {
-  color: #ccc;
   padding: 5px;
 }
 
 .Patcher_node-inline-def {
-  min-width: 400px;
-  min-height: 300px;
   border: 2px solid #ccc;
   display: flex;
+}
+
+.Patcher_definition-ports {
+  color: #ccc;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  overflow: hidden;
+  width: max-content;
+  box-sizing: border-box;
+  background: #444;
+}
+
+.Patcher_definition-input-ports {
+  left: 0;
+}
+
+.Patcher_definition-output-ports {
+  right: 0;
 }
 
 .Patcher canvas {

@@ -29,7 +29,12 @@ export const grid = {
 
 export const forEach = {
   functionParameters: {
-    f: null,
+    f: {
+      inputs: {
+        elem: {tempo: 'step'},
+      },
+      outputs: {},
+    },
   },
   inputs: {
     arr: {tempo: 'step'},

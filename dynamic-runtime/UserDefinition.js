@@ -54,12 +54,28 @@ class NativeApplication {
 // Definition of a user-defined (not native) function
 // containingDefinition is the UserDefinition that contains this one, or null if this is a root-level definition.
 export default class UserDefinition {
-  constructor(containingDefinition) {
+  constructor(containingDefinition, signature) {
     this.containingDefinition = containingDefinition;
 
     this.containedDefinitions = new Set();
     this.definitionToUsingApplications = new Map(); // map from UserDefinition (in this or outer scope) to the Set of local NativeApplications that make use of it (take it as a "function argument")
     this.nativeApplications = new Set(); // These are kept in topological sort order
+
+    this.definitionInputs = new Map(); // name -> OutPort
+    this.definitionOutputs = new Map(); // name -> InPort
+
+    if (signature) {
+      for (const n in signature.inputs) {
+        this.definitionInputs.set(n, new OutPort(this, signature.inputs[n].tempo));
+      }
+      const inPortsOwner = {
+        tag: 'def',
+        definition: this,
+      };
+      for (const n in signature.outputs) {
+        this.definitionOutputs.set(n, new InPort(this, signature.outputs[n].tempo, inPortsOwner));
+      }
+    }
 
     this.connections = new Set(); // All connections whose out port is in this definition
 
@@ -68,8 +84,8 @@ export default class UserDefinition {
   }
 
   // Create a new (initially empty) user-defined function definition, contained within this definition.
-  addContainedUserDefinition() {
-    const definition = new UserDefinition(this);
+  addContainedUserDefinition(signature) {
+    const definition = new UserDefinition(this, signature);
 
     this.containedDefinitions.add(definition);
     this.definitionToUsingApplications.set(definition, new Set());
