@@ -357,14 +357,14 @@ class Patcher extends Component {
         {(definition.definitionInputs.size > 0) &&
           <div className="Patcher_definition-ports Patcher_definition-input-ports Patcher_box-shadow">
             <div className="Patcher_output-ports-block">
-              {[...definition.definitionInputs].map(([n, outPort]) => this.renderPort(n, {}, false))}
+              {[...definition.definitionInputs].map(([n, outPort]) => this.renderPort(n, outPort, false))}
             </div>
           </div>
         }
         {(definition.definitionOutputs.size > 0) &&
           <div className="Patcher_definition-ports Patcher_definition-output-ports Patcher_box-shadow">
             <div className="Patcher_input-ports-block">
-              {[...definition.definitionOutputs].map(([n, inPort]) => this.renderPort(n, {}, true))}
+              {[...definition.definitionOutputs].map(([n, inPort]) => this.renderPort(n, inPort, true))}
             </div>
           </div>
         }

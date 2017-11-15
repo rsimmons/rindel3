@@ -43,24 +43,54 @@ export const forEach = {
   },
 
   create: (context) => {
+    context.transient = {
+      activations: [],
+    };
+  },
+
+  update: (context, inputs) => {
+    const arr = inputs.arr.value || [];
+    const activations = context.transient.activations;
+    const f = context.functionArguments.get('f');
+
+    // Trim any excess activations
+    if (activations.length > arr.length) {
+      for (let i = arr.length; i < activations.length; i++) {
+        activations[i].destroy();
+      }
+      activations.length = arr.length;
+    }
+
+    // Push array values to all current activations
+    for (let i = 0; i < activations.length; i++) {
+      activations[i].update(new Map([['elem', {value: arr[i], changed: true}]]));
+    }
+
+    // Create any new activations, pushing initial values
+    if (activations.length < arr.length) {
+      for (let i = activations.length; i < arr.length; i++) {
+        activations.push(f.activate(new Map([['elem', {value: arr[i], changed: true}]]), (outputs) => {
+          // TODO: shouldn't be possible? ignore?
+        }));
+      }
+    }
   },
 
   destroy: (context) => {
+    // TODO: clean up activations
   },
 };
 
 export const mousePos = {
   inputs: {},
   outputs: {
-    x: {tempo: 'step'},
-    y: {tempo: 'step'},
+    p: {tempo: 'step'},
   },
 
   create: (context) => {
     const onMouseMove = (e) => {
       context.setOutputs({
-        x: e.clientX || e.pageX,
-        y: e.clientY || e.pageY,
+        p: {x: e.clientX || e.pageX, y: e.clientY || e.pageY},
       });
     };
 
@@ -68,10 +98,7 @@ export const mousePos = {
     context.transient = { onMouseMove };
 
     // Initial output (before any movement) must be 0,0 unfortunately, can't poll mouse position
-    context.setOutputs({
-      x: 0,
-      y: 0,
-    });
+    context.setOutputs({p: {x: 0, y: 0}});
   },
 
   destroy: (context) => {
@@ -146,8 +173,7 @@ export const mouseClick = {
 // TODO: Should we hide it if input coords are undefined?
 export const redSquare = {
   inputs: {
-    x: {tempo: 'step'},
-    y: {tempo: 'step'},
+    p: {tempo: 'step'},
   },
   outputs: {},
 
@@ -160,16 +186,14 @@ export const redSquare = {
   },
 
   update: (context, inputs) => {
-    const x = inputs.x.value;
-    const y = inputs.y.value;
-
-    if ((x === undefined) || (y === undefined)) {
+    const p = inputs.p.value;
+    if (p === undefined) {
       return;
     }
 
     const el = context.transient.squareElem;
-    el.style.left = x + 'px';
-    el.style.top = y + 'px';
+    el.style.left = p.x + 'px';
+    el.style.top = p.y + 'px';
   },
 
   destroy: (context) => {

@@ -33,6 +33,7 @@ export function activateNativeDefinition(definition, initialInputs, onOutputChan
       context.state = newState;
     },
     transient: null,
+    functionArguments,
   };
 
   // Call create if the node has it. This doesn't return anything,

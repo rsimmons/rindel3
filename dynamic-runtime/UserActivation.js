@@ -20,7 +20,12 @@ export default class UserActivation {
 
     this.initializing = true;
 
-    // TODO: create streams for internal side of function inputs, setting+flowing initial values from initialInputs
+    // Create streams for internal side of function inputs, setting+flowing initial values from initialInputs
+    for (const [n, outPort] of definition.definitionInputs) {
+      const stream = new Stream();
+      this.outPortStream.set(outPort, stream);
+      this._setFlowOutPort(outPort, initialInputs.get(n).value);
+    }
 
     // Activate native applications (which will create streams, pulling in initial values if any).
     // This needs to be done in topological sort order, but we keep them ordered so it's easy. 
