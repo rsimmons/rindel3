@@ -6,6 +6,8 @@ import { activateNativeDefinition } from './nativeDefinition';
 // Activation of a user-defined (not native) function. This is the "internal" bookkeeping/state of the activation.
 export default class UserActivation {
   constructor(definition, initialInputs, onOutputChange, functionArguments) {
+    this.definition = definition;
+
     // Maps from OutPort and InPort objects to their corresponding Stream objects for this activation
     this.outPortStream = new Map();
     this.inPortStream = new Map();
@@ -38,12 +40,31 @@ export default class UserActivation {
     this.initializing = false;
   }
 
-  update() {
-    // TODO: implement. do _setFlowOutPort on corresponding input ports?
+  update(inputs) {
+    for (const [k, v] of inputs.entries()) {
+      assert(this.definition.definitionInputs.has(k)); // TODO: could ignore?
+
+      const outPort = this.definition.definitionInputs.get(k);
+      const outStream = this.outPortStream.get(outPort);
+
+      if (outPort.tempo === 'step') {
+        if (v.changed) {
+          this._setFlowOutPort(outPort, v.value);
+        }
+      } else if (outPort.tempo === 'event') {
+        if (v.present) {
+          this._setFlowOutPort(outPort, v.value);
+        }
+      } else {
+        assert(false);
+      }
+    }
   }
 
   destroy() {
-    // TODO: implement
+    for (const act of this.containedNativeApplicationActivationControl.values()) {
+      act.destroy();
+    }
   }
 
   // Let the activation know that a native application was added to the definition
