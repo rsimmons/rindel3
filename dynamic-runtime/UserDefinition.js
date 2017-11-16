@@ -144,6 +144,11 @@ export default class UserDefinition {
     return activation;
   }
 
+  // Notify this definition that one of its activations has been deactivated
+  activationDeactivated(activation) {
+    this.activations.delete(activation);
+  }
+
   // Return a generator that iterates over all connections contained within this definition
   // or any contained definitions (recursively)
   * deepConnections() {

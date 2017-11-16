@@ -65,6 +65,8 @@ export default class UserActivation {
     for (const act of this.containedNativeApplicationActivationControl.values()) {
       act.destroy();
     }
+
+    this.definition.activationDeactivated(this);
   }
 
   // Let the activation know that a native application was added to the definition
