@@ -6,25 +6,36 @@
 //   (don't need setTransient because it isn't managed by runtime)
 
 export const grid = {
-  inputs: {},
+  inputs: {
+    size: {tempo: 'step'},
+  },
   outputs: {
     arr: {tempo: 'step'},
   },
 
   create: (context) => {
+    context.setOutputs({
+      arr: [],
+    });
+  },
+
+  update: (context, inputs) => {
+    const size = inputs.size.value || 0;
+
     const arr = [];
-    for (let x = 0; x < 5; x++) {
-      for (let y = 0; y < 5; y++) {
+    for (let x = 0; x < size; x++) {
+      for (let y = 0; y < size; y++) {
         arr.push({
           x: 50*x,
           y: 50*y,
         });
       }
     }
+
     context.setOutputs({
       arr,
     });
-  },
+  }
 };
 
 export const forEach = {
@@ -99,6 +110,34 @@ export const mousePos = {
 
     // Initial output (before any movement) must be 0,0 unfortunately, can't poll mouse position
     context.setOutputs({p: {x: 0, y: 0}});
+  },
+
+  destroy: (context) => {
+    document.removeEventListener('mousemove', context.transient.onMouseMove);
+  },
+};
+
+export const mouseInt = {
+  inputs: {},
+  outputs: {
+    v: {tempo: 'step'},
+  },
+
+  create: (context) => {
+    const onMouseMove = (e) => {
+      const x = e.clientX || e.pageX;
+      const y = e.clientY || e.pageY;
+      const v = Math.floor(0.01*Math.sqrt(x*x + y*y));
+      context.setOutputs({
+        v,
+      });
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    context.transient = { onMouseMove };
+
+    // Initial output (before any movement) must be 0 unfortunately, can't poll mouse position
+    context.setOutputs({v: 0});
   },
 
   destroy: (context) => {
