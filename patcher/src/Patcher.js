@@ -118,6 +118,16 @@ class Patcher extends Component {
     }
   }
 
+  handleNodeHeaderMouseDown = (app, event) => {
+    if (event.target === event.currentTarget) {
+      this.beginDrag(event, {
+        kind: 'nodemove',
+        app,
+      });
+      event.preventDefault();
+    }
+  }
+
   handleMouseMove = (e) => {
     if (!this.drag) {
       throw new Error('internal error');
@@ -131,6 +141,9 @@ class Patcher extends Component {
     if (this.drag.target.kind === 'definition') {
       const definition = this.drag.target.definition;
       this.setState((state) => ({...state, defExtra: state.defExtra.updateIn([definition, 'viewOffset'], vo => ({x: vo.x + dx, y: vo.y + dy}))}));
+    } else if (this.drag.target.kind === 'nodemove') {
+      const app = this.drag.target.app;
+      this.setState((state) => ({...state, appExtra: state.appExtra.updateIn([app, 'position'], p => ({x: p.x + dx, y: p.y + dy}))}));
     }
   }
 
@@ -333,7 +346,7 @@ class Patcher extends Component {
 
     return (
       <div key={appExtra.uid} className="Patcher_node Patcher_box-shadow" style={{position: 'absolute', left: appExtra.position.x, top: appExtra.position.y}}>
-        <div className="Patcher_node-header">{appExtra.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(appExtra.uid); }}>✕</button></div></div>
+        <div className="Patcher_node-header" onMouseDown={(e) => { this.handleNodeHeaderMouseDown(napp, e); }}>{appExtra.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(appExtra.uid); }}>✕</button></div></div>
         <div className="Patcher_node-ports">
           <div className="Patcher_input-ports-block">{inputPorts.map(p => this.renderPort(p.name, p.portObj, true))}</div>
           <div className="Patcher_output-ports-block">{outputPorts.map(p => this.renderPort(p.name, p.portObj, false))}</div>
