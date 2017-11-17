@@ -66,7 +66,12 @@ class Patcher extends Component {
 
     while (elem !== this.rootElem) {
       x += elem.offsetLeft;
-      y += elem.offsetTop;
+      // SUPER HACK: This class has transform: translateY(-50%) which we need to account for
+      if (elem.classList.contains('Patcher_definition-ports')) {
+        y += elem.offsetTop - 0.5*elem.offsetHeight;
+      } else {
+        y += elem.offsetTop;
+      }
       elem = elem.offsetParent;
     }
 
