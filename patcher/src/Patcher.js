@@ -115,6 +115,7 @@ class Patcher extends Component {
         definition,
       });
       event.preventDefault();
+      event.stopPropagation();
     }
   }
 
@@ -125,6 +126,7 @@ class Patcher extends Component {
         app,
       });
       event.preventDefault();
+      event.stopPropagation();
     }
   }
 
