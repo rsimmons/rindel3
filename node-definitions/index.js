@@ -5,6 +5,43 @@
 //   transient
 //   (don't need setTransient because it isn't managed by runtime)
 
+function buildConstant(value) {
+  return {
+    inputs: {},
+    outputs: {
+      v: {tempo: 'step'},
+    },
+
+    create: (context) => {
+      context.setOutputs({
+        v: value,
+      });
+    },
+  };
+}
+
+function buildPointwiseUnary(func, filterUndefined) {
+  return {
+    inputs: {
+      v: {tempo: 'step'},
+    },
+    outputs: {
+      v: {tempo: 'step'},
+    },
+
+    update: (context, inputs) => {
+      if (filterUndefined && (inputs.v.value === undefined)) {
+        return undefined;
+      }
+
+      context.setOutputs({v: func(inputs.v.value)});
+    },
+  };
+}
+
+export const oneToTen = buildConstant([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+export const double = buildPointwiseUnary(v => 2*v);
+
 export const grid = {
   inputs: {
     size: {tempo: 'step'},
@@ -88,7 +125,102 @@ export const forEach = {
   },
 
   destroy: (context) => {
-    // TODO: clean up activations
+    for (const act of context.activations) {
+      act.destroy();
+    }
+  },
+};
+
+export const map = {
+  functionParameters: {
+    f: {
+      inputs: {
+        elem: {tempo: 'step'},
+      },
+      outputs: {
+        elem: {tempo: 'step'},
+      },
+    },
+  },
+  inputs: {
+    arr: {tempo: 'step'},
+  },
+  outputs: {
+    arr: {tempo: 'step'},
+  },
+
+  create: (context) => {
+    context.transient = {
+      activationsValues: [],
+    };
+  },
+
+  update: (context, inputs) => {
+    const emitOutput = () => {
+      context.setOutputs({
+        arr: context.transient.activationsValues.map(av => av.value),
+      });
+    };
+
+    const arr = inputs.arr.value || [];
+    const activationsValues = context.transient.activationsValues;
+    const f = context.functionArguments.get('f');
+
+    // Trim any excess activations
+    if (activationsValues.length > arr.length) {
+      for (let i = arr.length; i < activationsValues.length; i++) {
+        activationsValues[i].activation.destroy();
+      }
+      activationsValues.length = arr.length;
+    }
+
+    context.transient.updating = true;
+    context.transient.anyOutputChanged = false;
+
+    // Push array values to all current activations
+    for (let i = 0; i < activationsValues.length; i++) {
+      activationsValues[i].activation.update(new Map([['elem', {value: arr[i], changed: true}]]));
+    }
+
+    // Create any new activations, pushing initial values
+    if (activationsValues.length < arr.length) {
+      for (let i = activationsValues.length; i < arr.length; i++) {
+        activationsValues.push({
+          activation: undefined,
+          value: undefined,
+        });
+
+        (idx => {
+          activationsValues[idx].activation = f.activate(new Map([['elem', {value: arr[idx], changed: true}]]), (changedOutputs) => {
+            if (!changedOutputs.has('elem')) {
+              throw new Error('internal error');
+            }
+
+            activationsValues[idx].value = changedOutputs.get('elem');
+
+            if (context.transient.updating) {
+              // We wait to collect all changed outputs before we emit the result array
+              context.transient.anyOutputChanged = true;
+            } else {
+              // This means the sub-activation output was async, so we async emit our array output
+              emitOutput();
+            }
+          });
+        })(i);
+      }
+    }
+
+    if (context.transient.anyOutputChanged) {
+      emitOutput();
+    }
+
+    context.transient.updating = false;
+  },
+
+  destroy: (context) => {
+    for (const av of context.activationsValues) {
+      av.activation.destroy();
+    }
   },
 };
 

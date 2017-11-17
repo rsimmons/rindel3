@@ -250,6 +250,10 @@ export default class UserDefinition {
             this._topologicalSortTraverseFromNapp(inPortOwner.nativeApplication, traversingNapps, finishedNapps, reverseResult);
             break;
 
+          case 'def':
+            // I think we don't need to do anything here
+            break;
+
           default:
             assert(false);
         }

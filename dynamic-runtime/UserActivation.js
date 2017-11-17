@@ -7,6 +7,7 @@ import { activateNativeDefinition } from './nativeDefinition';
 export default class UserActivation {
   constructor(definition, initialInputs, onOutputChange, functionArguments) {
     this.definition = definition;
+    this.onOutputChange = onOutputChange;
 
     // Maps from OutPort and InPort objects to their corresponding Stream objects for this activation
     this.outPortStream = new Map();
@@ -35,13 +36,14 @@ export default class UserActivation {
       this._activateNativeApplication(napp);
     }
 
-    // TODO: if we have immediate/initial output (check function-output streams), then call onOutputChange
+    // Check if we have any immediate/initial output
+    this._emitOutput(false);
 
     this.initializing = false;
   }
 
   update(inputs) {
-    for (const [k, v] of inputs.entries()) {
+    for (const [k, v] of inputs) {
       assert(this.definition.definitionInputs.has(k)); // TODO: could ignore?
 
       const outPort = this.definition.definitionInputs.get(k);
@@ -89,41 +91,45 @@ export default class UserActivation {
   }
 
   _gatherNativeApplicationInputs(nativeApplication, initial) {
-    const inputs = new Map();
-
-    for (const [n, inPort] of nativeApplication.inPorts) {
+    const inPortToValueChange = (inPort) => {
       const stream = this.inPortStream.get(inPort);
 
       if (inPort.tempo === 'step') {
         // NOTE: By convention we always set changed to true for initial inputs
         if (stream) {
-          inputs.set(n, {
+          return {
             value: stream.latestValue,
             changed: initial ? true : (stream.lastChangedInstant === this.currentInstant),
-          });
+          };
         } else {
-          inputs.set(n, {
+          return {
             value: undefined,
             changed: true,
-          });
+          };
         }
       } else if (inPort.tempo === 'event') {
         // For event-tempo ports, we only provide a value if there is an event present (at the
         // current instant)
         if (stream && (stream.lastChangedInstant === this.currentInstant)) {
-          inputs.set(n, {
+          return {
             value: stream.latestValue,
             present: true,
-          });
+          };
         } else {
-          inputs.set(n, {
+          return {
             value: undefined,
             present: false,
-          });
+          };
         }
       } else {
         assert(false);
       }
+    }
+
+    const inputs = new Map();
+
+    for (const [n, inPort] of nativeApplication.inPorts) {
+      inputs.set(n, inPortToValueChange(inPort));
     }
 
     return inputs;
@@ -184,6 +190,13 @@ export default class UserActivation {
         }
         break;
 
+      case 'def':
+        priority = Infinity;
+        task = {
+          tag: 'defout',
+        }
+        break;
+
       default:
         assert(false);
     }
@@ -236,6 +249,27 @@ export default class UserActivation {
     }
   }
 
+  _emitOutput(mustBePresent) {
+    // Check definition-output streams, and if any have changed then call this.onOutputChange
+    // If mustBePresent is true, then assert if no changes were found.
+    // NOTE: We only emit outputs that have changed.
+    const changedOutputs = new Map();
+
+    for (const [n, inPort] of this.definition.definitionOutputs) {
+      const stream = this.inPortStream.get(inPort);
+
+      if (stream && (stream.lastChangedInstant === this.currentInstant)) {
+        changedOutputs.set(n, stream.latestValue);
+      }
+    }
+
+    assert(!(mustBePresent && changedOutputs.size === 0));
+
+    if (changedOutputs.size) {
+      this.onOutputChange(changedOutputs);
+    }
+  }
+
   _priorityQueueTasksEqual(a, b) {
     if (a.tag !== b.tag) {
       return false;
@@ -269,6 +303,10 @@ export default class UserActivation {
           const activationControl = this.containedNativeApplicationActivationControl.get(nativeApplication);
           const inputs = this._gatherNativeApplicationInputs(nativeApplication, false);
           activationControl.update(inputs);
+          break;
+
+        case 'defout':
+          this._emitOutput(true);
           break;
 
         default:
