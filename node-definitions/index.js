@@ -1,79 +1,128 @@
-// context has:
-//   setOutputs
-//   state (not to be modified)
-//   setState
-//   transient
-//   (don't need setTransient because it isn't managed by runtime)
-
 function buildConstant(value) {
   return {
-    inputs: {},
-    outputs: {
-      v: {tempo: 'step'},
-    },
+    inputs: [],
+    output: {tempo: 'step'},
 
-    create: (context) => {
-      context.setOutputs({
-        v: value,
-      });
+    activate: (initialInputs, onOutputChange) => {
+      onOutputChange(value);
+      return {};
     },
   };
 }
 
-function buildPointwiseUnary(func, filterUndefined) {
+function buildPointwiseUnary(f) {
   return {
-    inputs: {
-      v: {tempo: 'step'},
-    },
-    outputs: {
-      v: {tempo: 'step'},
-    },
+    inputs: [
+      {tempo: 'step'},
+    ],
+    output: {tempo: 'step'},
 
-    update: (context, inputs) => {
-      if (filterUndefined && (inputs.v.value === undefined)) {
-        return undefined;
-      }
-
-      context.setOutputs({v: func(inputs.v.value)});
+    activate: (initialInputs, onOutputChange) => {
+      onOutputChange(f(initialInputs[0].value));
+      return {
+        update: (inputs) => {
+          onOutputChange(f(inputs[0].value));
+        },
+      };
     },
   };
 }
 
+export const one = buildConstant(1);
 export const oneToTen = buildConstant([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 export const double = buildPointwiseUnary(v => 2*v);
 
-export const grid = {
-  inputs: {
-    size: {tempo: 'step'},
-  },
-  outputs: {
-    arr: {tempo: 'step'},
-  },
+export const grid = buildPointwiseUnary(size => {
+  size = size || 0;
 
-  create: (context) => {
-    context.setOutputs({
-      arr: [],
-    });
-  },
+  const arr = [];
+  for (let x = 0; x < size; x++) {
+    for (let y = 0; y < size; y++) {
+      arr.push({
+        x: 50*x,
+        y: 50*y,
+      });
+    }
+  }
 
-  update: (context, inputs) => {
-    const size = inputs.size.value || 0;
+  return arr;
+});
 
-    const arr = [];
-    for (let x = 0; x < size; x++) {
-      for (let y = 0; y < size; y++) {
-        arr.push({
-          x: 50*x,
-          y: 50*y,
-        });
-      }
+export const consoleLog = {
+  inputs: [
+    {tempo: 'step'},
+  ],
+  output: null,
+
+  activate: (initialInputs) => {
+    const log = (v) => {
+      console.log('consoleLog', v);
     }
 
-    context.setOutputs({
-      arr,
-    });
+    log(initialInputs[0].value);
+
+    return {
+      update: (inputs) => {
+        log(inputs[0].value);
+      }
+    };
   }
+}
+
+export const displayAsString = {
+  inputs: [
+    {tempo: 'step'},
+  ],
+  output: null,
+
+  activate: (initialInputs, onOutputChange) => {
+    const divElem = document.createElement('div');
+    divElem.style.cssText = 'position: absolute; top: 0; right: 0; pointer-events: none; background: white; border: 1px solid red; color: black; font-size: 24px; padding: 5px';
+    divElem.textContent = '(undefined)';
+    document.body.appendChild(divElem);
+
+    const set = (v) => {
+      divElem.textContent = (v === undefined) ? '(undefined)' : v.toString();
+    };
+
+    set(initialInputs[0].value);
+
+    return {
+      update: (inputs) => {
+        set(inputs[0].value);
+      },
+      destroy: () => {
+        document.body.removeChild(divElem);
+      },
+    };
+  },
 };
+
+export const animationTime = {
+  inputs: [],
+  output: {tempo: 'step'},
+
+  activate: (initialInputs, onOutputChange) => {
+    let reqId;
+
+    const onFrame = (time) => {
+      onOutputChange(time);
+      reqId = requestAnimationFrame(onFrame);
+    };
+
+    // Set initial output to reasonable value and kick off updates
+    onFrame(performance.now());
+
+    return {
+      destroy: () => {
+        cancelAnimationFrame(reqId);
+      },
+    };
+  },
+};
+
+/////////////////////////////////////////////////////////////////////////////
+// STILL NEED UPDATING BELOW THIS POINT
 
 export const forEach = {
   functionParameters: {
@@ -372,56 +421,6 @@ export const redSquare = {
   },
 };
 
-export const showString = {
-  inputs: {
-    v: {tempo: 'step'},
-  },
-  outputs: {},
-
-  create: (context) => {
-    const divElem = document.createElement('div');
-    divElem.style.cssText = 'position: absolute; top: 0; right: 0; pointer-events: none; background: white; border: 1px solid red; color: black; font-size: 24px; padding: 5px';
-    divElem.textContent = '(undefined)';
-    document.body.appendChild(divElem);
-
-    context.transient = { divElem };
-  },
-
-  update: (context, inputs) => {
-    const v = inputs.v.value;
-    context.transient.divElem.textContent = (v === undefined) ? '(undefined)' : v.toString();
-  },
-
-  destroy: (context) => {
-    document.body.removeChild(context.transient.divElem);
-  },
-};
-
-export const animationTime = {
-  inputs: {},
-  outputs: {
-    time: {tempo: 'step'},
-  },
-
-  create: (context) => {
-    context.transient = { reqId: undefined };
-
-    const onFrame = (time) => {
-      context.setOutputs({
-        time,
-      });
-      context.transient.reqId = requestAnimationFrame(onFrame);
-    };
-
-    // Set initial output to reasonable value and kick off updates
-    onFrame(performance.now());
-  },
-
-  destroy: (context) => {
-    cancelAnimationFrame(context.transient.reqId);
-  },
-};
-
 export const eventCount = {
   inputs: {
     events: {tempo: 'event'},
@@ -443,161 +442,5 @@ export const eventCount = {
     const newCount = context.state.count + 1;
     context.setState({count: newCount});
     context.setOutputs({count: newCount});
-  },
-}
-
-export const audioManager = {
-  inputs: {
-    audioBuffer: {tempo: 'event'},
-  },
-  outputs: {
-    renderAudio: {tempo: 'event'},
-    sampleRate: {tempo: 'const'},
-  },
-
-  create: (context) => {
-    const BUFFER_SIZE = 1024;
-
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-    const onAudioProcess = (e) => {
-      context.transient.bufferToFill = e.outputBuffer.getChannelData(0);
-      context.transient.bufferFilled = false;
-      context.setOutputs({
-        renderAudio: BUFFER_SIZE,
-      });
-      if (!context.transient.bufferFilled) {
-        // If buffer didn't get filled, fill with zeroes since old data seems to persist otherwise
-        context.transient.bufferToFill.fill(0);
-      }
-      context.transient.bufferToFill = null;
-    };
-
-    const scriptNode = audioContext.createScriptProcessor(BUFFER_SIZE, 0, 1); // 0 input channels, 1 output channel
-    scriptNode.onaudioprocess = onAudioProcess;
-    scriptNode.connect(audioContext.destination);
-
-    context.transient = {
-      BUFFER_SIZE,
-      audioContext,
-      scriptNode,
-      bufferToFill: null,
-      bufferFilled: false,
-    };
-
-    // Set initial output
-    context.setOutputs({
-      sampleRate: audioContext.sampleRate,
-    });
-  },
-
-  update: (context, inputs) => {
-    // NOTE: We expect to receive an audioBuffer event in the same instant that we emit the renderAudio event.
-    // In other words, the emission of the renderAudio event must _synchronously_ cause us to receive an audioBuffer
-    // event in response, it's like a function call.
-    if (!context.transient.bufferToFill) {
-      // This means we received a buffer without having emitted a renderAudio event in same instant. Ignore it.
-      return;
-    }
-
-    if (!inputs.audioBuffer.present) {
-      throw new Error('internal error');
-    }
-
-    if (inputs.audioBuffer.value.length !== context.transient.BUFFER_SIZE) {
-      throw new Error('receive audio buffer of wrong size');
-    }
-
-    context.transient.bufferToFill.set(inputs.audioBuffer.value);
-    context.transient.bufferFilled = true;
-  },
-
-  destroy: (context) => {
-    context.transient.scriptNode.disconnect();
-    context.transient.audioContext.close();
-  },
-};
-
-export const noise = {
-  inputs: {
-    renderAudio: {tempo: 'event'},
-  },
-  outputs: {
-    audioBuffer: {tempo: 'event'},
-  },
-
-  update: (context, inputs) => {
-    if (!inputs.renderAudio.present) {
-      throw new Error('internal error');
-    }
-
-    const frames = inputs.renderAudio.value;
-    const audioBuffer = new Float32Array(frames);
-    for (let i = 0; i < frames; i++) {
-      audioBuffer[i] = 0.1*Math.random() - 0.05;
-    }
-
-    context.setOutputs({
-      audioBuffer,
-    });
-  },
-};
-
-export const boolToAudioGate = {
-  inputs: {
-    renderAudio: {tempo: 'event'},
-    on: {tempo: 'step'},
-  },
-  outputs: {
-    audioBuffer: {tempo: 'event'},
-  },
-
-  update: (context, inputs) => {
-    if (inputs.renderAudio.present) {
-      const frames = inputs.renderAudio.value;
-      const audioBuffer = new Float32Array(frames);
-      audioBuffer.fill(inputs.on.value ? 1 : 0);
-
-      context.setOutputs({
-        audioBuffer,
-      });
-    }
-  },
-};
-
-export const multiplier = {
-  inputs: {
-    renderAudio: {tempo: 'event'},
-    a: {tempo: 'event'},
-    b: {tempo: 'event'},
-  },
-  outputs: {
-    audioBuffer: {tempo: 'event'},
-  },
-
-  update: (context, inputs) => {
-    if (!inputs.renderAudio.present) {
-      // Received input audio without render event. Ignore
-      return;
-    }
-
-    const frames = inputs.renderAudio.value;
-    const audioBuffer = new Float32Array(frames);
-
-    if (!inputs.a.present || !inputs.b.present) {
-      audioBuffer.fill(0);
-    } else {
-      if ((inputs.a.value.length !== frames) || (inputs.b.value.length !== frames)) {
-        throw new Error('input audio buffer wrong length');
-      }
-
-      for (let i = 0; i < frames; i++) {
-        audioBuffer[i] = inputs.a.value[i]*inputs.b.value[i];
-      }
-    }
-
-    context.setOutputs({
-      audioBuffer,
-    });
   },
 }

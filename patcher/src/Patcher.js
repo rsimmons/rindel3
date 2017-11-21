@@ -330,7 +330,7 @@ class Patcher extends Component {
     const selected = sp && (sp.portObj === portObj);
 
     return (
-      <div key={name} onClick={() => { this.handlePortClick(portObj, isInput); }} onDoubleClick={() => { this.handlePortDoubleClick(portObj); }} ref={el => { this.portElemMap.set(portObj, el); }} className={'Patcher_node-port' + (selected ? ' Patcher_node-port-selected' : '')}>{name}</div>
+      <div key={name} onClick={() => { this.handlePortClick(portObj, isInput); }} onDoubleClick={() => { this.handlePortDoubleClick(portObj); }} ref={el => { this.portElemMap.set(portObj, el); }} className={'Patcher_node-port' + (selected ? ' Patcher_node-port-selected' : '')}>{name || '\u00a0'}</div>
     );
   }
 
@@ -339,11 +339,15 @@ class Patcher extends Component {
 
     const inputPorts = [];
     const outputPorts = [];
-    for (const [n, p] of napp.inPorts) {
-      inputPorts.push({name: n, portObj: p});
+    for (const p of napp.inputs) {
+      inputPorts.push({name: p.name, portObj: p});
     }
-    for (const [n, p] of napp.outPorts) {
-      outputPorts.push({name: n, portObj: p});
+    if (napp.output instanceof Map) {
+      for (const [n, p] of napp.output) {
+        outputPorts.push({name: n, portObj: p});
+      }
+    } else if (napp.output) {
+      outputPorts.push({name: null, portObj: napp.output});
     }
 
     return (
@@ -377,15 +381,19 @@ class Patcher extends Component {
         {(definition.definitionInputs.size > 0) &&
           <div className="Patcher_definition-ports Patcher_definition-input-ports Patcher_box-shadow">
             <div className="Patcher_output-ports-block">
-              {[...definition.definitionInputs].map(([n, outPort]) => this.renderPort(n, outPort, false))}
+              {definition.definitionInputs.map(outPort => this.renderPort(outPort.name, outPort, false))}
             </div>
           </div>
         }
         {(definition.definitionOutputs.size > 0) &&
           <div className="Patcher_definition-ports Patcher_definition-output-ports Patcher_box-shadow">
-            <div className="Patcher_input-ports-block">
-              {[...definition.definitionOutputs].map(([n, inPort]) => this.renderPort(n, inPort, true))}
-            </div>
+            <div className="Patcher_input-ports-block">{(() => {
+              if (definition.definitionOutput instanceof Map) {
+                return [...definition.definitionOutputs].map(([n, inPort]) => this.renderPort(n, inPort, true));
+              } else if (definition.definitionOutput) {
+                return this.renderPort(null, definition.definitionOutput, true);
+              }
+            })()}</div>
           </div>
         }
       </div>

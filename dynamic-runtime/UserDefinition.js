@@ -32,8 +32,9 @@ class OutPort {
 }
 
 class InPort {
-  constructor(containingDefinition, tempo, owner) {
+  constructor(containingDefinition, name, tempo, owner) {
     this.containingDefinition = containingDefinition;
+    this.name = name;
     this.tempo = tempo;
     this.owner = owner;
     this.connection = null;
@@ -46,8 +47,8 @@ class NativeApplication {
     this.definition = definition;
     this.functionArguments = functionArguments; // NOTE: these are unchangeable for now
     this.sortIndex = undefined;
-    this.inPorts = new Map(); // name -> InPort
-    this.outPorts = new Map(); // name -> OutPort
+    this.inputs = []; // array of InPort
+    this.output = null; // either an OutPort or a Map from string to OutPort
   }
 }
 
@@ -65,15 +66,21 @@ export default class UserDefinition {
     this.definitionOutputs = new Map(); // name -> InPort
 
     if (signature) {
-      for (const n in signature.inputs) {
-        this.definitionInputs.set(n, new OutPort(this, signature.inputs[n].tempo));
+      for (const inp of signature.inputs) {
+        this.definitionInputs.push(new OutPort(this, signature.inputs[n].tempo));
       }
       const inPortsOwner = {
         tag: 'def',
         definition: this,
       };
-      for (const n in signature.outputs) {
-        this.definitionOutputs.set(n, new InPort(this, signature.outputs[n].tempo, inPortsOwner));
+      if (signature.output) {
+        assert(!signature.outputs);
+        this.definitionOutput = new InPort(this, null, signature.outputs[n].tempo, inPortsOwner);
+      } else if (signature.outputs) {
+        this.definitionOutput = new Map();
+        for (const n in signature.outputs) {
+          this.definitionOutput.set(n, new InPort(this, n, signature.outputs[n].tempo, inPortsOwner));
+        }
       }
     }
 
@@ -110,11 +117,17 @@ export default class UserDefinition {
       tag: 'napp',
       nativeApplication: app,
     };
-    for (const n in definition.inputs) {
-      app.inPorts.set(n, new InPort(this, definition.inputs[n].tempo, inPortsOwner));
+    for (const inp of definition.inputs) {
+      app.inputs.push(new InPort(this, inp.name, inp.tempo, inPortsOwner));
     }
-    for (const n in definition.outputs) {
-      app.outPorts.set(n, new OutPort(this, definition.outputs[n].tempo));
+    if (definition.output) {
+      assert(!definition.outputs);
+      app.output = new OutPort(this, definition.output.tempo);
+    } else if (definition.outputs) {
+      app.output = new Map();
+      for (const n in definition.outputs) {
+        app.output.set(n, new OutPort(this, definition.outputs[n].tempo));
+      }
     }
 
     this.nativeApplications.add(app);
@@ -274,8 +287,14 @@ export default class UserDefinition {
     traversingNapps.add(nativeApplication);
 
     // Traverse from each output port of this native application
-    for (const [n, outPort] of nativeApplication.outPorts) {
-      this._topologicalSortTraverseFromOutPort(outPort, traversingNapps, finishedNapps, reverseResult);
+    if (nativeApplication.output instanceof Map) {
+      // Compound output
+      for (const [n, outPort] of nativeApplication.output) {
+        this._topologicalSortTraverseFromOutPort(outPort, traversingNapps, finishedNapps, reverseResult);
+      }
+    } else if (nativeApplication.output) {
+      // Single output
+      this._topologicalSortTraverseFromOutPort(nativeApplication.output, traversingNapps, finishedNapps, reverseResult);
     }
 
     traversingNapps.delete(nativeApplication);

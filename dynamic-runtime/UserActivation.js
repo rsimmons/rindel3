@@ -126,10 +126,10 @@ export default class UserActivation {
       }
     }
 
-    const inputs = new Map();
+    const inputs = [];
 
-    for (const [n, inPort] of nativeApplication.inPorts) {
-      inputs.set(n, inPortToValueChange(inPort));
+    for (const inPort of nativeApplication.inputs) {
+      inputs.push(inPortToValueChange(inPort));
     }
 
     return inputs;
@@ -142,11 +142,19 @@ export default class UserActivation {
     // Create streams for the output ports of the native function definition,
     //  and store the streams in the containing activation.
 
+    // Create and store the streams
     const outStreams = []; // We'll use this below
-    for (const [n, outPort] of nativeApplication.outPorts) {
-      // Create the stream and store it
+    if (nativeApplication.output instanceof Map) {
+      // Compound output
+      for (const [n, outPort] of nativeApplication.output) {
+        const stream = new Stream();
+        this.outPortStream.set(outPort, stream);
+        outStreams.push(stream);
+      }
+    } else if (nativeApplication.output) {
+      // Single output
       const stream = new Stream();
-      this.outPortStream.set(outPort, stream);
+      this.outPortStream.set(nativeApplication.output, stream);
       outStreams.push(stream);
     }
 
@@ -154,9 +162,17 @@ export default class UserActivation {
     const initialInputs = this._gatherNativeApplicationInputs(nativeApplication, true);
 
     // Create onOutputChange callback that sets/flows the changed output streams
-    const onOutputChange = (changedOutputs) => {
-      for (const [n, v] of changedOutputs) {
-        this._setFlowOutPort(nativeApplication.outPorts.get(n), v);
+    const onOutputChange = (outVal) => {
+      if (nativeApplication.output instanceof Map) {
+        // Compound output
+        for (const [n, v] of outVal) {
+          this._setFlowOutPort(nativeApplication.output.get(n), v);
+        }
+      } else if (nativeApplication.output) {
+        // Single output
+        this._setFlowOutPort(nativeApplication.output, outVal);
+      } else {
+        assert(false); // callback should not be called if no outputs
       }
     };
 
@@ -250,23 +266,33 @@ export default class UserActivation {
   }
 
   _emitOutput(mustBePresent) {
-    // Check definition-output streams, and if any have changed then call this.onOutputChange
+    // Check definition-output stream(s), and if any have changed then call this.onOutputChange.
     // If mustBePresent is true, then assert if no changes were found.
     // NOTE: We only emit outputs that have changed.
-    const changedOutputs = new Map();
+    if (this.definition.definitionOutput instanceof Map) {
+      const changedOutputs = new Map();
 
-    for (const [n, inPort] of this.definition.definitionOutputs) {
+      for (const [n, inPort] of this.definition.definitionOutput) {
+        const stream = this.inPortStream.get(inPort);
+
+        if (stream && (stream.lastChangedInstant === this.currentInstant)) {
+          changedOutputs.set(n, stream.latestValue);
+        }
+      }
+
+      assert(!(mustBePresent && changedOutputs.size === 0));
+
+      if (changedOutputs.size) {
+        this.onOutputChange(changedOutputs);
+      }
+    } else if (this.definition.definitionOutput) {
       const stream = this.inPortStream.get(inPort);
 
       if (stream && (stream.lastChangedInstant === this.currentInstant)) {
-        changedOutputs.set(n, stream.latestValue);
+        this.onOutputChange(stream.latestValue);
       }
-    }
-
-    assert(!(mustBePresent && changedOutputs.size === 0));
-
-    if (changedOutputs.size) {
-      this.onOutputChange(changedOutputs);
+    } else {
+      assert(!mustBePresent);
     }
   }
 

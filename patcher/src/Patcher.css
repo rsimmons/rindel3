@@ -72,6 +72,7 @@
 .Patcher_node-port {
   padding: 0 5px;
   margin: 6px 0;
+  min-width: 1em;
 }
 
 .Patcher_node-port-selected {
