@@ -62,12 +62,12 @@ export default class UserDefinition {
     this.definitionToUsingApplications = new Map(); // map from UserDefinition (in this or outer scope) to the Set of local NativeApplications that make use of it (take it as a "function argument")
     this.nativeApplications = new Set(); // These are kept in topological sort order
 
-    this.definitionInputs = new Map(); // name -> OutPort
-    this.definitionOutputs = new Map(); // name -> InPort
+    this.definitionInputs = []; // array of OutPort
+    this.definitionOutputs = null; // either InPort or Map from name to InPort or null
 
     if (signature) {
       for (const inp of signature.inputs) {
-        this.definitionInputs.push(new OutPort(this, signature.inputs[n].tempo));
+        this.definitionInputs.push(new OutPort(this, inp.tempo));
       }
       const inPortsOwner = {
         tag: 'def',
@@ -75,7 +75,7 @@ export default class UserDefinition {
       };
       if (signature.output) {
         assert(!signature.outputs);
-        this.definitionOutput = new InPort(this, null, signature.outputs[n].tempo, inPortsOwner);
+        this.definitionOutput = new InPort(this, null, signature.output.tempo, inPortsOwner);
       } else if (signature.outputs) {
         this.definitionOutput = new Map();
         for (const n in signature.outputs) {

@@ -378,14 +378,14 @@ class Patcher extends Component {
         <div style={{position: 'absolute', left: viewOffset.x, top: viewOffset.y, background: 'transparent'}} ref={el => { this.defPositioningElemMap.set(definition, el); }}>
           {[...definition.nativeApplications].map(napp => this.renderApplication(napp))}
         </div>
-        {(definition.definitionInputs.size > 0) &&
+        {(definition.definitionInputs.length > 0) &&
           <div className="Patcher_definition-ports Patcher_definition-input-ports Patcher_box-shadow">
             <div className="Patcher_output-ports-block">
               {definition.definitionInputs.map(outPort => this.renderPort(outPort.name, outPort, false))}
             </div>
           </div>
         }
-        {(definition.definitionOutputs.size > 0) &&
+        {definition.definitionOutput &&
           <div className="Patcher_definition-ports Patcher_definition-output-ports Patcher_box-shadow">
             <div className="Patcher_input-ports-block">{(() => {
               if (definition.definitionOutput instanceof Map) {
