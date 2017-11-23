@@ -121,6 +121,34 @@ export const animationTime = {
   },
 };
 
+export const mouseDown = {
+  inputs: [],
+  output: {tempo: 'step'},
+
+  activate: (initialInputs, onOutputChange) => {
+    const onMouseDown = () => {
+      onOutputChange(true);
+    };
+
+    const onMouseUp = () => {
+      onOutputChange(false);
+    };
+
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mouseup', onMouseUp);
+
+    // Set initial output (we assume up, but will be fine if already up)
+    onOutputChange(false);
+
+    return {
+      destroy: () => {
+        document.removeEventListener('mousedown', onMouseDown);
+        document.removeEventListener('mouseup', onMouseUp);
+      }
+    };
+  },
+};
+
 /////////////////////////////////////////////////////////////////////////////
 // STILL NEED UPDATING BELOW THIS POINT
 
@@ -323,45 +351,6 @@ export const mouseInt = {
 
   destroy: (context) => {
     document.removeEventListener('mousemove', context.transient.onMouseMove);
-  },
-};
-
-export const mouseDown = {
-  inputs: {},
-  outputs: {
-    down: {tempo: 'step'},
-  },
-
-  create: (context) => {
-    const onMouseDown = (e) => {
-      context.setOutputs({
-        down: true,
-      });
-    };
-
-    const onMouseUp = (e) => {
-      context.setOutputs({
-        down: false,
-      });
-    };
-
-    document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('mouseup', onMouseUp);
-
-    context.transient = {
-      onMouseDown,
-      onMouseUp,
-    };
-
-    // Set initial output (we assume up, but will be fine if already up
-    context.setOutputs({
-      down: false,
-    });
-  },
-
-  destroy: (context) => {
-    document.removeEventListener('mousedown', context.transient.onMouseDown);
-    document.removeEventListener('mouseup', context.transient.onMouseUp);
   },
 };
 
