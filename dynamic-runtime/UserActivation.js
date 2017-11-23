@@ -61,6 +61,10 @@ export default class UserActivation {
         assert(false);
       }
     }
+
+    // Pump to process these updated inputs
+    assert(!this.pumping);
+    this.pump();
   }
 
   destroy() {
@@ -174,6 +178,14 @@ export default class UserActivation {
       } else {
         assert(false); // callback should not be called if no outputs
       }
+
+      // If we aren't already pumping, then this must have been a async output, so we start pumping.
+      // NOTE: We could set a flag when we enter/exit activation and update calls to determine
+      // whether this call is truly async or not, and use this as a sanity check against the
+      // current state of the pumping flag (this.pumping iff not-async-output).
+      if (!this.pumping) {
+        this.pump();
+      }
     };
 
     const activationControl = activateNativeDefinition(nativeApplication.definition, initialInputs, onOutputChange, nativeApplication.functionArguments);
@@ -218,11 +230,6 @@ export default class UserActivation {
     }
 
     this.priorityQueue.insert(priority, task);
-
-    // Start pumping if we're not already pumping
-    if (!this.pumping) {
-      this.pump();
-    }
   }
 
   // Propagate value change along the given connection within the context of the given activation (at the source/out side),
@@ -312,6 +319,9 @@ export default class UserActivation {
   }
 
   pump() {
+    assert(!this.pumping);
+    this.pumping = true;
+
     const pq = this.priorityQueue;
     const instant = this.currentInstant;
 
@@ -341,5 +351,6 @@ export default class UserActivation {
     }
 
     this.currentInstant++;
+    this.pumping = false;
   }
 }
