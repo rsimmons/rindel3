@@ -223,15 +223,30 @@ export const map = {
     };
 
     // Handle initial inputs
-    update(initialInputs[0]);
+    update(initialInputs[0].value);
 
     return {
       update: (inputs) => {
-        update(inputs[0]);
+        update(inputs[0].value);
       },
       destroy: () => {
         for (const av of activationsValues) {
           av.activation.destroy();
+        }
+      },
+      definitionChanged: (subdefPath) => {
+        if (subdefPath.length < 1) {
+          throw new Error('internal error');
+        }
+        const firstSubdef = subdefPath[0];
+        const restSubdefs = subdefPath.slice(1);
+        if (firstSubdef !== f) {
+          console.log(firstSubdef, f);
+          throw new Error('internal error');
+        }
+
+        for (const av of activationsValues) {
+          av.activation.definitionChanged(restSubdefs);
         }
       },
     };

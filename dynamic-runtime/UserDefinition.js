@@ -162,6 +162,23 @@ export default class UserDefinition {
     this.activations.delete(activation);
   }
 
+  // This is called when something about this definition has changed that will require its
+  // activations (and potentially all its "parent" activations) to have update() called on them.
+  recursiveActivationsUpdate() {
+    // Compute the "path" of definitions to this one
+    const definitionPath = [];
+    for (let def = this; def; def = def.containingDefinition) {
+      definitionPath.push(def);
+    }
+    definitionPath.reverse();
+
+    const rootDef = definitionPath[0];
+
+    for (const rootAct of rootDef.activations) {
+      rootAct.definitionChanged(definitionPath.slice(1));
+    }
+  }
+
   // Return a generator that iterates over all connections contained within this definition
   // or any contained definitions (recursively)
   * deepConnections() {
@@ -242,6 +259,8 @@ export default class UserDefinition {
     for (const act of this.activations) {
       act.addedConnection(cxn);
     }
+
+    this.recursiveActivationsUpdate();
   }
 
   _topologicalSortTraverseFromOutPort(outPort, traversingNapps, finishedNapps, reverseResult) {

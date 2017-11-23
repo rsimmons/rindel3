@@ -13,8 +13,8 @@ export default class UserActivation {
     this.outPortStream = new Map();
     this.inPortStream = new Map();
 
-    this.pumping = false; // is there currently a call to pump() running?
-    this.priorityQueue = new PriorityQueue(); // this should be empty unless we are pumping
+    this.updating = false;
+    this.priorityQueue = new PriorityQueue(); // this should be empty unless we're updating
     this.currentInstant = 1; // before pump this is next instant, during pump it's current instant
 
     // Map from native applications (within this user-defined function) to their activation wrappers (NativeApplication -> ApplicationWrapper)
@@ -24,10 +24,12 @@ export default class UserActivation {
     this.initializing = true;
 
     // Create streams for internal side of function inputs, setting+flowing initial values from initialInputs
-    for (const [n, outPort] of definition.definitionInputs) {
+    assert(initialInputs.length === definition.definitionInputs.length);
+    for (let i = 0; i < initialInputs.length; i++) {
+      const outPort = definition.definitionInputs[i];
       const stream = new Stream();
       this.outPortStream.set(outPort, stream);
-      this._setFlowOutPort(outPort, initialInputs.get(n).value);
+      this._setFlowOutPort(outPort, initialInputs[i].value);
     }
 
     // Activate native applications (which will create streams, pulling in initial values if any).
@@ -43,6 +45,10 @@ export default class UserActivation {
   }
 
   update(inputs) {
+    assert(!this.updating);
+    assert(this.priorityQueue.isEmpty());
+    this.updating = true;
+
     for (const [k, v] of inputs) {
       assert(this.definition.definitionInputs.has(k)); // TODO: could ignore?
 
@@ -63,8 +69,9 @@ export default class UserActivation {
     }
 
     // Pump to process these updated inputs
-    assert(!this.pumping);
     this.pump();
+
+    this.updating = false;
   }
 
   destroy() {
@@ -75,9 +82,31 @@ export default class UserActivation {
     this.definition.activationDeactivated(this);
   }
 
+  definitionChanged(subdefPath) {
+    assert(!this.updating);
+    this.updating = true;
+
+    if (subdefPath.length > 0) {
+      const firstSubdef = subdefPath[0];
+      const restSubdefs = subdefPath.slice(1);
+
+      // These are the activations that could care about the subdef having changed
+      const apps = this.definition.definitionToUsingApplications.get(firstSubdef);
+      for (const app of apps) {
+        const actControl = this.containedNativeApplicationActivationControl.get(app);
+
+        // NOTE: We pass the full path here rather than slicing off the first one
+        actControl.definitionChanged(subdefPath);
+      }
+    }
+
+    this.pump();
+    this.updating = false;
+  }
+
   // Let the activation know that a native application was added to the definition
   addedNativeApplication(app) {
-    assert(!this.pumping); // TODO: necessary/useful?
+    assert(!this.updating); // TODO: necessary/useful?
 
     this._activateNativeApplication(app);
 
@@ -87,7 +116,7 @@ export default class UserActivation {
 
   // Let the activation know that a connection was added to the definition
   addedConnection(cxn) {
-    assert(!this.pumping); // TODO: necessary/useful?
+    assert(!this.updating); // TODO: necessary/useful?
 
     // NOTE: I think it should not be necessary to flow the connection if the ports are event-tempo,
     // but that's not a very important optimization.
@@ -179,12 +208,14 @@ export default class UserActivation {
         assert(false); // callback should not be called if no outputs
       }
 
-      // If we aren't already pumping, then this must have been a async output, so we start pumping.
+      // If we aren't already updating, then this must have been a async output, so we start updating.
       // NOTE: We could set a flag when we enter/exit activation and update calls to determine
       // whether this call is truly async or not, and use this as a sanity check against the
-      // current state of the pumping flag (this.pumping iff not-async-output).
-      if (!this.pumping) {
+      // current state of the updating flag (this.updating iff not-async-output).
+      if (!this.updating) {
+        this.updating = true;
         this.pump();
+        this.updating = false;
       }
     };
 
@@ -293,7 +324,7 @@ export default class UserActivation {
         this.onOutputChange(changedOutputs);
       }
     } else if (this.definition.definitionOutput) {
-      const stream = this.inPortStream.get(inPort);
+      const stream = this.inPortStream.get(this.definition.definitionOutput);
 
       if (stream && (stream.lastChangedInstant === this.currentInstant)) {
         this.onOutputChange(stream.latestValue);
@@ -319,8 +350,7 @@ export default class UserActivation {
   }
 
   pump() {
-    assert(!this.pumping);
-    this.pumping = true;
+    assert(this.updating);
 
     const pq = this.priorityQueue;
     const instant = this.currentInstant;
@@ -351,6 +381,5 @@ export default class UserActivation {
     }
 
     this.currentInstant++;
-    this.pumping = false;
   }
 }

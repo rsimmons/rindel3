@@ -24,7 +24,7 @@ class Patcher extends Component {
     super(props);
 
     this.rootDefinition = createRootUserDefinition();
-    this.rootActivation = this.rootDefinition.activate(new Map(), () => {}, new Map());
+    this.rootActivation = this.rootDefinition.activate([], () => {}, new Map());
     this.nodePool = new NodePool(); // TODO: this should probably be passed as a prop, but let's load directly for now
 
     // Positions in state are relative to patcher element
