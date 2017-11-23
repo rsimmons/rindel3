@@ -149,6 +149,95 @@ export const mouseDown = {
   },
 };
 
+export const map = {
+  functionParameters: {
+    f: {
+      inputs: [
+        {tempo: 'step'},
+      ],
+      output: {tempo: 'step'},
+    },
+  },
+  inputs: [
+    {tempo: 'step'},
+  ],
+  output: {tempo: 'step'},
+
+  activate: (initialInputs, onOutputChange, functionArguments) => {
+    const f = functionArguments.get('f');
+    const activationsValues = [];
+    let updating = false; // we use this to determine when outputs are async
+
+    const emitOutput = () => {
+      onOutputChange(activationsValues.map(av => av.value));
+    };
+
+    const update = (arr) => {
+      arr = arr || [];
+
+      // Trim any excess activations
+      if (activationsValues.length > arr.length) {
+        for (let i = arr.length; i < activationsValues.length; i++) {
+          activationsValues[i].activation.destroy();
+        }
+        activationsValues.length = arr.length;
+      }
+
+      updating = true;
+      let anyOutputChanged = false;
+
+      // Push array values to all current activations
+      for (let i = 0; i < activationsValues.length; i++) {
+        activationsValues[i].activation.update([{value: arr[i], changed: true}]);
+      }
+
+      // Create any new activations, pushing initial values
+      if (activationsValues.length < arr.length) {
+        for (let i = activationsValues.length; i < arr.length; i++) {
+          activationsValues.push({
+            activation: undefined,
+            value: undefined,
+          });
+
+          (idx => {
+            activationsValues[idx].activation = f.activate([{value: arr[idx], changed: true}], (changedOutput) => {
+              activationsValues[idx].value = changedOutput;
+
+              if (updating) {
+                // We wait to collect all changed outputs before we emit the result array
+                anyOutputChanged = true;
+              } else {
+                // This means the sub-activation output was async, so we async emit our array output
+                emitOutput();
+              }
+            });
+          })(i);
+        }
+      }
+
+      if (anyOutputChanged) {
+        emitOutput();
+      }
+
+      updating = false;
+    };
+
+    // Handle initial inputs
+    update(initialInputs[0]);
+
+    return {
+      update: (inputs) => {
+        update(inputs[0]);
+      },
+      destroy: () => {
+        for (const av of activationsValues) {
+          av.activation.destroy();
+        }
+      },
+    };
+  },
+};
+
 /////////////////////////////////////////////////////////////////////////////
 // STILL NEED UPDATING BELOW THIS POINT
 
@@ -204,99 +293,6 @@ export const forEach = {
   destroy: (context) => {
     for (const act of context.activations) {
       act.destroy();
-    }
-  },
-};
-
-export const map = {
-  functionParameters: {
-    f: {
-      inputs: {
-        elem: {tempo: 'step'},
-      },
-      outputs: {
-        elem: {tempo: 'step'},
-      },
-    },
-  },
-  inputs: {
-    arr: {tempo: 'step'},
-  },
-  outputs: {
-    arr: {tempo: 'step'},
-  },
-
-  create: (context) => {
-    context.transient = {
-      activationsValues: [],
-    };
-  },
-
-  update: (context, inputs) => {
-    const emitOutput = () => {
-      context.setOutputs({
-        arr: context.transient.activationsValues.map(av => av.value),
-      });
-    };
-
-    const arr = inputs.arr.value || [];
-    const activationsValues = context.transient.activationsValues;
-    const f = context.functionArguments.get('f');
-
-    // Trim any excess activations
-    if (activationsValues.length > arr.length) {
-      for (let i = arr.length; i < activationsValues.length; i++) {
-        activationsValues[i].activation.destroy();
-      }
-      activationsValues.length = arr.length;
-    }
-
-    context.transient.updating = true;
-    context.transient.anyOutputChanged = false;
-
-    // Push array values to all current activations
-    for (let i = 0; i < activationsValues.length; i++) {
-      activationsValues[i].activation.update(new Map([['elem', {value: arr[i], changed: true}]]));
-    }
-
-    // Create any new activations, pushing initial values
-    if (activationsValues.length < arr.length) {
-      for (let i = activationsValues.length; i < arr.length; i++) {
-        activationsValues.push({
-          activation: undefined,
-          value: undefined,
-        });
-
-        (idx => {
-          activationsValues[idx].activation = f.activate(new Map([['elem', {value: arr[idx], changed: true}]]), (changedOutputs) => {
-            if (!changedOutputs.has('elem')) {
-              throw new Error('internal error');
-            }
-
-            activationsValues[idx].value = changedOutputs.get('elem');
-
-            if (context.transient.updating) {
-              // We wait to collect all changed outputs before we emit the result array
-              context.transient.anyOutputChanged = true;
-            } else {
-              // This means the sub-activation output was async, so we async emit our array output
-              emitOutput();
-            }
-          });
-        })(i);
-      }
-    }
-
-    if (context.transient.anyOutputChanged) {
-      emitOutput();
-    }
-
-    context.transient.updating = false;
-  },
-
-  destroy: (context) => {
-    for (const av of context.activationsValues) {
-      av.activation.destroy();
     }
   },
 };
