@@ -28,6 +28,25 @@ function buildPointwiseUnary(f) {
   };
 }
 
+function buildPointwiseBinary(f) {
+  return {
+    inputs: [
+      {tempo: 'step'},
+      {tempo: 'step'},
+    ],
+    output: {tempo: 'step'},
+
+    activate: (initialInputs, onOutputChange) => {
+      onOutputChange(f(initialInputs[0].value, initialInputs[1].value));
+      return {
+        update: (inputs) => {
+          onOutputChange(f(inputs[0].value, inputs[1].value));
+        },
+      };
+    },
+  };
+}
+
 export const one = buildConstant(1);
 export const oneToTen = buildConstant([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 export const double = buildPointwiseUnary(v => 2*v);
@@ -48,6 +67,7 @@ export const grid = buildPointwiseUnary(size => {
   return arr;
 });
 
+export const add = buildPointwiseBinary((a, b) => a + b);
 
 export const literal = {
   inputs: [],
