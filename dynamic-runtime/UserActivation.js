@@ -123,6 +123,14 @@ export default class UserActivation {
     this._flowConnection(cxn);
   }
 
+  // Set the settings on an application
+  setApplicationSettings(app, newSettings) {
+    const actControl = this.containedNativeApplicationActivationControl.get(app);
+    actControl.changeSettings(newSettings);
+
+    this._insertAppUpdateTask(app);
+  }
+
   _gatherNativeApplicationInputs(nativeApplication, initial) {
     const inPortToValueChange = (inPort) => {
       const stream = this.inPortStream.get(inPort);
@@ -219,7 +227,7 @@ export default class UserActivation {
       }
     };
 
-    const activationControl = activateNativeDefinition(nativeApplication.definition, initialInputs, onOutputChange, nativeApplication.functionArguments);
+    const activationControl = activateNativeDefinition(nativeApplication.definition, initialInputs, onOutputChange, nativeApplication.functionArguments, nativeApplication.settings);
 
     // If lastChangedInstant is still undefined on any output streams, set it to current instant
     for (const stream of outStreams) {
@@ -232,35 +240,33 @@ export default class UserActivation {
     this.containedNativeApplicationActivationControl.set(nativeApplication, activationControl);
   }
 
+  _insertAppUpdateTask(app) {
+    const priority = app.sortIndex;
+    assert(priority !== undefined);
+    this.priorityQueue.insert(priority, {
+      tag: 'napp',
+      nativeApplication: app,
+    });
+  }
+
   _notifyInPort(inPort) {
     // See what task is associated with notifying inPort, and insert an element
     // into the priority queue, associated with this activation.
     const owner = inPort.owner;
-    let priority;
-    let task;
     switch (owner.tag) {
       case 'napp':
-        const nativeApplication = owner.nativeApplication;
-        priority = nativeApplication.sortIndex;
-        assert(priority !== undefined);
-        task = {
-          tag: 'napp',
-          nativeApplication,
-        }
+        this._insertAppUpdateTask(owner.nativeApplication);
         break;
 
       case 'def':
-        priority = Infinity;
-        task = {
+        this.priorityQueue.insert(Infinity, {
           tag: 'defout',
-        }
+        });
         break;
 
       default:
         assert(false);
     }
-
-    this.priorityQueue.insert(priority, task);
   }
 
   // Propagate value change along the given connection within the context of the given activation (at the source/out side),

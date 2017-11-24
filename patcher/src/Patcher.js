@@ -13,11 +13,42 @@ const AppExtra = Record({
   position: null, // {x, y}
   def: null,
   functionArguments: null,
+  uiInstance: null,
 });
 
 const DefExtra = Record({
   viewOffset: null, // {x, y}
 });
+
+class ApplicationSettings extends Component {
+  constructor(props) {
+    super(props);
+
+    this.uiInstance = null;
+    this.containerElem = null;
+  }
+
+  componentDidMount() {
+    const {uiClass, defaultSettings, onChangeSettings} = this.props;
+
+    // Create UI into container elem
+    this.uiInstance = new uiClass(this.containerElem, defaultSettings, (newSettings) => {
+      onChangeSettings(newSettings);
+    });
+  }
+
+  componentWillUnmount() {
+    if (this.uiInstance && this.uiInstance.destroy) {
+      this.uiInstance.destroy();
+    }
+  }
+
+  render() {
+    return (
+      <div ref={el => { this.containerElem = el; }} />
+    );
+  }
+}
 
 class Patcher extends Component {
   constructor(props) {
@@ -334,7 +365,7 @@ class Patcher extends Component {
     );
   }
 
-  renderApplication(napp) {
+  renderApplication(napp, definition) {
     const appExtra = this.state.appExtra.get(napp);
 
     const inputPorts = [];
@@ -353,6 +384,9 @@ class Patcher extends Component {
     return (
       <div key={appExtra.uid} className="Patcher_node Patcher_box-shadow" style={{position: 'absolute', left: appExtra.position.x, top: appExtra.position.y}}>
         <div className="Patcher_node-header" onMouseDown={(e) => { this.handleNodeHeaderMouseDown(napp, e); }}>{appExtra.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(appExtra.uid); }}>✕</button></div></div>
+        {appExtra.def.ui &&
+          <ApplicationSettings uiClass={appExtra.def.ui} defaultSettings={appExtra.def.defaultSettings} onChangeSettings={(newSettings) => { definition.setApplicationSettings(napp, newSettings); }} />
+        }
         <div className="Patcher_node-ports">
           <div className="Patcher_input-ports-block">{inputPorts.map(p => this.renderPort(p.name, p.portObj, true))}</div>
           <div className="Patcher_output-ports-block">{outputPorts.map(p => this.renderPort(p.name, p.portObj, false))}</div>
@@ -376,7 +410,7 @@ class Patcher extends Component {
     return (
       <div className="Patcher_definition" onMouseDown={(e) => { this.handleDefinitionMouseDown(definition, e); }}>
         <div style={{position: 'absolute', left: viewOffset.x, top: viewOffset.y, background: 'transparent'}} ref={el => { this.defPositioningElemMap.set(definition, el); }}>
-          {[...definition.nativeApplications].map(napp => this.renderApplication(napp))}
+          {[...definition.nativeApplications].map(napp => this.renderApplication(napp, definition))}
         </div>
         {(definition.definitionInputs.length > 0) &&
           <div className="Patcher_definition-ports Patcher_definition-input-ports Patcher_box-shadow">

@@ -48,6 +48,56 @@ export const grid = buildPointwiseUnary(size => {
   return arr;
 });
 
+
+export const literal = {
+  inputs: [],
+  output: {tempo: 'step'},
+  defaultSettings: {valueString: '0'},
+
+  activate: (initialInputs, onOutputChange, functionArguments, initialSettings) => {
+    let currentSettings = initialSettings;
+
+    const updateOutput = () => {
+      let value = undefined;
+      try {
+        value = eval(currentSettings.valueString);
+      } catch(e) {
+        // ignore
+      }
+      onOutputChange(value);
+    };
+
+    updateOutput();
+
+    return {
+      changeSettings: (newSettings) => {
+        currentSettings = newSettings;
+      },
+
+      update: () => {
+        updateOutput();
+      },
+    };
+  },
+
+  ui: class {
+    constructor(container, initialSettings, changeSettings) {
+      this.inputElem = document.createElement('input');
+      this.inputElem.value = initialSettings.valueString;
+      container.appendChild(this.inputElem);
+      this.onChange = () => {
+      };
+      this.inputElem.addEventListener('change', () => {
+        changeSettings({valueString: this.inputElem.value});
+      }, false);
+    }
+
+    update(newSettings) {
+      this.inputElem.textContent = newSettings.valueString;
+    }
+  },
+};
+
 export const consoleLog = {
   inputs: [
     {tempo: 'step'},
@@ -241,7 +291,6 @@ export const map = {
         const firstSubdef = subdefPath[0];
         const restSubdefs = subdefPath.slice(1);
         if (firstSubdef !== f) {
-          console.log(firstSubdef, f);
           throw new Error('internal error');
         }
 

@@ -43,9 +43,11 @@ class InPort {
 
 // Within a UserDefinition, this represents the application of a native function
 class NativeApplication {
-  constructor(definition, functionArguments) {
+  constructor(definition, functionArguments, settings) {
     this.definition = definition;
     this.functionArguments = functionArguments; // NOTE: these are unchangeable for now
+    this.settings = settings;
+
     this.sortIndex = undefined;
     this.inputs = []; // array of InPort
     this.output = null; // either an OutPort or a Map from string to OutPort
@@ -109,7 +111,7 @@ export default class UserDefinition {
       }
     }
 
-    const app = new NativeApplication(definition, functionArguments);
+    const app = new NativeApplication(definition, functionArguments, definition.defaultSettings);
 
     // Create port objects for the application
     // TODO: In the future, I think these port objects will need to be created on-demand as well (for variable positional arguments)
@@ -140,12 +142,29 @@ export default class UserDefinition {
       }
     }
 
+    // Update topological sort
+    // NOTE: While the sort shouldn't really have changed, we want to make sure that all
+    // applications have valid sort indexes. We could also just assign this new application
+    // a valid sort index (e.g. one higher than current highest) but this is easy/clear.
+    this._updateTopologicalSort();
+
     // Let all activations of this definition know that a native application was added
     for (const act of this.activations) {
       act.addedNativeApplication(app);
     }
 
     return app;
+  }
+
+  setApplicationSettings(nativeApplication, newSettings) {
+    assert(this.nativeApplications.has(nativeApplication));
+
+    // Let all activations of this definition know that this application's settings have changed
+    for (const act of this.activations) {
+      act.setApplicationSettings(nativeApplication, newSettings);
+    }
+
+    this.recursiveActivationsUpdate();
   }
 
   activate(initialInputs, onOutputChange, functionArguments) {
