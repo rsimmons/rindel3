@@ -243,6 +243,7 @@ export const map = {
 
       // Create any new activations, pushing initial values
       if (activationsValues.length < arr.length) {
+        anyOutputChanged = true; // Even if sub-act doesn't output, it will add undefined to output array
         for (let i = activationsValues.length; i < arr.length; i++) {
           activationsValues.push({
             activation: undefined,
