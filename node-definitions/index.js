@@ -176,7 +176,7 @@ export const animationTime = {
     let reqId;
 
     const onFrame = (time) => {
-      onOutputChange(time);
+      onOutputChange(0.001*time);
       reqId = requestAnimationFrame(onFrame);
     };
 
