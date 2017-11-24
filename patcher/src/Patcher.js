@@ -356,12 +356,12 @@ class Patcher extends Component {
     ctx.stroke();
   }
 
-  renderPort(name, portObj, isInput) {
+  renderPort(name, portObj, key, isInput) {
     const sp = this.state.selectedPort;
     const selected = sp && (sp.portObj === portObj);
 
     return (
-      <div key={name} onClick={() => { this.handlePortClick(portObj, isInput); }} onDoubleClick={() => { this.handlePortDoubleClick(portObj); }} ref={el => { this.portElemMap.set(portObj, el); }} className={'Patcher_node-port' + (selected ? ' Patcher_node-port-selected' : '')}>{name || '\u00a0'}</div>
+      <div key={key} onClick={() => { this.handlePortClick(portObj, isInput); }} onDoubleClick={() => { this.handlePortDoubleClick(portObj); }} ref={el => { this.portElemMap.set(portObj, el); }} className={'Patcher_node-port' + (selected ? ' Patcher_node-port-selected' : '')}>{name || '\u00a0'}</div>
     );
   }
 
@@ -370,15 +370,16 @@ class Patcher extends Component {
 
     const inputPorts = [];
     const outputPorts = [];
-    for (const p of napp.inputs) {
-      inputPorts.push({name: p.name, portObj: p});
+    for (let i = 0; i < napp.inputs.length; i++) {
+      const p = napp.inputs[i];
+      inputPorts.push({name: p.name, portObj: p, key: i.toString()});
     }
     if (napp.output instanceof Map) {
       for (const [n, p] of napp.output) {
-        outputPorts.push({name: n, portObj: p});
+        outputPorts.push({name: n, portObj: p, key: n});
       }
     } else if (napp.output) {
-      outputPorts.push({name: null, portObj: napp.output});
+      outputPorts.push({name: napp.output.name, portObj: napp.output, key: ''});
     }
 
     return (
@@ -388,8 +389,8 @@ class Patcher extends Component {
           <ApplicationSettings uiClass={appExtra.def.ui} defaultSettings={appExtra.def.defaultSettings} onChangeSettings={(newSettings) => { definition.setApplicationSettings(napp, newSettings); }} />
         }
         <div className="Patcher_node-ports">
-          <div className="Patcher_input-ports-block">{inputPorts.map(p => this.renderPort(p.name, p.portObj, true))}</div>
-          <div className="Patcher_output-ports-block">{outputPorts.map(p => this.renderPort(p.name, p.portObj, false))}</div>
+          <div className="Patcher_input-ports-block">{inputPorts.map(p => this.renderPort(p.name, p.portObj, p.key, true))}</div>
+          <div className="Patcher_output-ports-block">{outputPorts.map(p => this.renderPort(p.name, p.portObj, p.key, false))}</div>
         </div>
         {(appExtra.functionArguments.size > 0) &&
           <div className="Patcher_node-inline-defs">
@@ -415,7 +416,7 @@ class Patcher extends Component {
         {(definition.definitionInputs.length > 0) &&
           <div className="Patcher_definition-ports Patcher_definition-input-ports Patcher_box-shadow">
             <div className="Patcher_output-ports-block">
-              {definition.definitionInputs.map(outPort => this.renderPort(outPort.name, outPort, false))}
+              {definition.definitionInputs.map((outPort, i) => this.renderPort(outPort.name, outPort, i.toString(), false))}
             </div>
           </div>
         }
@@ -423,9 +424,9 @@ class Patcher extends Component {
           <div className="Patcher_definition-ports Patcher_definition-output-ports Patcher_box-shadow">
             <div className="Patcher_input-ports-block">{(() => {
               if (definition.definitionOutput instanceof Map) {
-                return [...definition.definitionOutputs].map(([n, inPort]) => this.renderPort(n, inPort, true));
+                return [...definition.definitionOutputs].map(([n, inPort]) => this.renderPort(n, inPort, n, true));
               } else if (definition.definitionOutput) {
-                return this.renderPort(null, definition.definitionOutput, true);
+                return this.renderPort(null, definition.definitionOutput, '', true);
               }
             })()}</div>
           </div>
