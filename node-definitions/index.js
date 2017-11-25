@@ -28,7 +28,7 @@ function buildPointwiseUnary(f) {
   };
 }
 
-function buildPointwiseBinary(f) {
+function buildPointwiseBinary(f, filterUndef) {
   return {
     inputs: [
       {tempo: 'step'},
@@ -37,10 +37,23 @@ function buildPointwiseBinary(f) {
     output: {tempo: 'step'},
 
     activate: (initialInputs, onOutputChange) => {
-      onOutputChange(f(initialInputs[0].value, initialInputs[1].value));
+
+      const update = (a, b) => {
+        const av = a.value;
+        const bv = b.value;
+
+        if (filterUndef && ((av === undefined) || (bv === undefined))) {
+          onOutputChange(undefined);
+        } else {
+          onOutputChange(f(av, bv));
+        }
+      }
+
+      update(...initialInputs);
+
       return {
         update: (inputs) => {
-          onOutputChange(f(inputs[0].value, inputs[1].value));
+          update(...inputs);
         },
       };
     },
@@ -68,6 +81,7 @@ export const grid = buildPointwiseUnary(size => {
 });
 
 export const add = buildPointwiseBinary((a, b) => a + b);
+export const addVec = buildPointwiseBinary((a, b) => ({x: a.x+b.x, y: a.y+b.y}), true);
 
 export const literal = {
   inputs: [],
@@ -80,7 +94,7 @@ export const literal = {
     const updateOutput = () => {
       let value = undefined;
       try {
-        value = eval(currentSettings.valueString);
+        value = eval('(' + currentSettings.valueString + ')');
       } catch(e) {
         // ignore
       }
@@ -215,6 +229,61 @@ export const mouseDown = {
         document.removeEventListener('mousedown', onMouseDown);
         document.removeEventListener('mouseup', onMouseUp);
       }
+    };
+  },
+};
+
+export const mousePos = {
+  inputs: [],
+  output: {tempo: 'step'},
+
+  activate: (initialInputs, onOutputChange) => {
+    const onMouseMove = (e) => {
+      onOutputChange({
+        x: e.clientX || e.pageX,
+        y: e.clientY || e.pageY,
+      });
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+
+    // Initial output (before any movement) must be 0,0 unfortunately, can't poll mouse position
+    onOutputChange({x: 0, y: 0});
+
+    return {
+      destroy: () => {
+        document.removeEventListener('mousemove', onMouseMove);
+      },
+    };
+  },
+};
+
+// TODO: Should we hide it if input coords are undefined?
+export const redSquare = {
+  inputs: [
+    {tempo: 'step', name: 'position'},
+  ],
+  output: null,
+
+  activate: (initialInputs, onOutputChange) => {
+    const squareElem = document.createElement('div');
+    squareElem.style.cssText = 'position: absolute; width: 20px; height: 20px; border: 1px solid black; background: red; pointer-events: none;';
+    document.body.appendChild(squareElem);
+
+    return {
+      update: (inputs) => {
+        const p = inputs[0].value;
+        if (p === undefined) {
+          return;
+        }
+
+        squareElem.style.left = p.x + 'px';
+        squareElem.style.top = p.y + 'px';
+      },
+
+      destroy: () => {
+        document.body.removeChild(squareElem);
+      },
     };
   },
 };
@@ -382,31 +451,6 @@ export const forEach = {
   },
 };
 
-export const mousePos = {
-  inputs: {},
-  outputs: {
-    p: {tempo: 'step'},
-  },
-
-  create: (context) => {
-    const onMouseMove = (e) => {
-      context.setOutputs({
-        p: {x: e.clientX || e.pageX, y: e.clientY || e.pageY},
-      });
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    context.transient = { onMouseMove };
-
-    // Initial output (before any movement) must be 0,0 unfortunately, can't poll mouse position
-    context.setOutputs({p: {x: 0, y: 0}});
-  },
-
-  destroy: (context) => {
-    document.removeEventListener('mousemove', context.transient.onMouseMove);
-  },
-};
-
 export const mouseInt = {
   inputs: {},
   outputs: {
@@ -457,37 +501,6 @@ export const mouseClick = {
 
   destroy: (context) => {
     document.removeEventListener('click', context.transient.onClick);
-  },
-};
-
-// TODO: Should we hide it if input coords are undefined?
-export const redSquare = {
-  inputs: {
-    p: {tempo: 'step'},
-  },
-  outputs: {},
-
-  create: (context) => {
-    const squareElem = document.createElement('div');
-    squareElem.style.cssText = 'position: absolute; width: 20px; height: 20px; border: 1px solid black; background: red; pointer-events: none;';
-    document.body.appendChild(squareElem);
-
-    context.transient = { squareElem };
-  },
-
-  update: (context, inputs) => {
-    const p = inputs.p.value;
-    if (p === undefined) {
-      return;
-    }
-
-    const el = context.transient.squareElem;
-    el.style.left = p.x + 'px';
-    el.style.top = p.y + 'px';
-  },
-
-  destroy: (context) => {
-    document.body.removeChild(context.transient.squareElem);
   },
 };
 
