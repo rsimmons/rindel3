@@ -312,6 +312,7 @@ export const map = {
     const f = functionArguments.get('f');
     const activationsValues = [];
     let updating = false; // we use this to determine when outputs are async
+    let anyOutputChanged;
 
     const emitOutput = () => {
       onOutputChange(activationsValues.map(av => av.value));
@@ -329,7 +330,7 @@ export const map = {
       }
 
       updating = true;
-      let anyOutputChanged = false;
+      anyOutputChanged = false;
 
       // Push array values to all current activations
       for (let i = 0; i < activationsValues.length; i++) {
