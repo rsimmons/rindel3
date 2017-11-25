@@ -2,5 +2,8 @@
   "name": "node-definitions",
   "version": "0.1.0",
   "private": true,
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "dynamic-runtime": "0.1.0"
+  }
 }
