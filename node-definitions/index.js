@@ -270,15 +270,21 @@ export const redSquare = {
     squareElem.style.cssText = 'position: absolute; width: 20px; height: 20px; border: 1px solid black; background: red; pointer-events: none;';
     document.body.appendChild(squareElem);
 
+    const update = (inputs) => {
+      const p = inputs[0].value;
+      if (p === undefined) {
+        return;
+      }
+
+      squareElem.style.left = p.x + 'px';
+      squareElem.style.top = p.y + 'px';
+    };
+
+    update(initialInputs);
+
     return {
       update: (inputs) => {
-        const p = inputs[0].value;
-        if (p === undefined) {
-          return;
-        }
-
-        squareElem.style.left = p.x + 'px';
-        squareElem.style.top = p.y + 'px';
+        update(inputs);
       },
 
       destroy: () => {
