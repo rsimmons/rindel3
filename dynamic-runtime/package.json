@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "test": "jest"
+    "test": "jest --watchAll"
   },
   "dependencies": {
     "fastpriorityqueue": "^0.3.1"
