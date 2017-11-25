@@ -4,6 +4,6 @@ import assert from './assert';
 // it is expected that native definitions may have different 'styles' rather
 // than following the same "standard" calling conventions, and so to activate
 // them will be more work.
-export function activateNativeDefinition(definition, initialInputs, onOutputChange, functionArguments, settings) {
+export default function activateNativeDefinition(definition, initialInputs, onOutputChange, functionArguments, settings) {
   return definition.activate(initialInputs, onOutputChange, functionArguments, settings);
 }

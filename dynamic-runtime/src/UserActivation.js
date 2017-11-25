@@ -1,7 +1,7 @@
 import assert from './assert';
 import PriorityQueue from './PriorityQueue';
 import Stream from './Stream';
-import { activateNativeDefinition } from './nativeDefinition';
+import activateNativeDefinition from './activateNativeDefinition';
 
 // Activation of a user-defined (not native) function. This is the "internal" bookkeeping/state of the activation.
 export default class UserActivation {
