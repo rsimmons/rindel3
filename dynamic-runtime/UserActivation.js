@@ -45,16 +45,17 @@ export default class UserActivation {
   }
 
   update(inputs) {
+    assert(inputs.length === this.definition.definitionInputs.length);
+
     assert(!this.updating);
     assert(this.priorityQueue.isEmpty());
     this.updating = true;
 
-    for (const [k, v] of inputs) {
-      assert(this.definition.definitionInputs.has(k)); // TODO: could ignore?
-
-      const outPort = this.definition.definitionInputs.get(k);
+    for (let i = 0; i < inputs.length; i++) {
+      const outPort = this.definition.definitionInputs[i];
       const outStream = this.outPortStream.get(outPort);
 
+      const v = inputs[i];
       if (outPort.tempo === 'step') {
         if (v.changed) {
           this._setFlowOutPort(outPort, v.value);
@@ -220,7 +221,7 @@ export default class UserActivation {
       // NOTE: We could set a flag when we enter/exit activation and update calls to determine
       // whether this call is truly async or not, and use this as a sanity check against the
       // current state of the updating flag (this.updating iff not-async-output).
-      if (!this.updating) {
+      if (!this.initializing && !this.updating) {
         this.updating = true;
         this.pump();
         this.updating = false;
