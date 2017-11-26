@@ -59,6 +59,28 @@ describe('runtime', () => {
     expect(outputCallback.mock.calls).toEqual([[456]]);
   });
 
+  test('constant connected to definition out', () => {
+    const def = new UserDefinition(null, {
+      inputs: [],
+      output: {tempo: 'step'},
+    });
+
+    const constDef = buildConstant(123);
+
+    const constApp = def.addNativeApplication(constDef);
+
+    def.addConnection(constApp.output, def.definitionOutput);
+
+    const outputCallback = jest.fn();
+    const act = def.activate(outputCallback);
+
+    expect(outputCallback).not.toBeCalled();
+
+    act.evaluate();
+
+    expect(outputCallback.mock.calls).toEqual([[123]]);
+  });
+
   test('adding two constants into sink output', () => {
     const const2Def = buildConstant(2);
     const const3Def = buildConstant(3);
