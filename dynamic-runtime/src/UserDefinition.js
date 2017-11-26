@@ -104,10 +104,12 @@ export default class UserDefinition {
 
   addNativeApplication(definition, functionArguments) {
     // Validate functionArguments parameter
-    for (const [n, def] of functionArguments) {
-      assert(n in definition.functionParameters); // can only provide args matching parameters
-      if (def !== undefined) {
-        // TODO: assert that def is either native or a user definition with a common parent
+    if (functionArguments) {
+      for (const [n, def] of functionArguments) {
+        assert(n in definition.functionParameters); // can only provide args matching parameters
+        if (def !== undefined) {
+          // TODO: assert that def is either native or a user definition with a common parent
+        }
       }
     }
 
@@ -136,9 +138,11 @@ export default class UserDefinition {
 
     // Track function arguments used by this application so that we may send in values from outer
     // scopes if needed.
-    for (const def of functionArguments.values()) {
-      if (def) {
-        this.definitionToUsingApplications.get(def).add(app);
+    if (functionArguments) {
+      for (const def of functionArguments.values()) {
+        if (def) {
+          this.definitionToUsingApplications.get(def).add(app);
+        }
       }
     }
 
