@@ -3,9 +3,14 @@ export function buildConstant(value) {
     inputs: [],
     output: {tempo: 'step'},
 
-    activate: (initialInputs, onOutputChange) => {
-      onOutputChange(value);
-      return {};
+    activation: class {
+      constructor(setOutput) {
+        this.setOutput = setOutput;
+      }
+
+      evaluate() {
+        this.setOutput(value);
+      }
     },
   };
 }
@@ -17,13 +22,14 @@ export function buildPointwiseUnary(f) {
     ],
     output: {tempo: 'step'},
 
-    activate: (initialInputs, onOutputChange) => {
-      onOutputChange(f(initialInputs[0].value));
-      return {
-        update: (inputs) => {
-          onOutputChange(f(inputs[0].value));
-        },
-      };
+    activation: class {
+      constructor(setOutput) {
+        this.setOutput = setOutput;
+      }
+
+      evaluate([v]) {
+        this.setOutput(f(v.value));
+      }
     },
   };
 }
@@ -36,26 +42,21 @@ export function buildPointwiseBinary(f, filterUndef) {
     ],
     output: {tempo: 'step'},
 
-    activate: (initialInputs, onOutputChange) => {
+    activation: class {
+      constructor(setOutput) {
+        this.setOutput = setOutput;
+      }
 
-      const update = (a, b) => {
+      evaluate([a, b]) {
         const av = a.value;
         const bv = b.value;
 
         if (filterUndef && ((av === undefined) || (bv === undefined))) {
-          onOutputChange(undefined);
+          this.setOutput(undefined);
         } else {
-          onOutputChange(f(av, bv));
+          this.setOutput(f(av, bv));
         }
       }
-
-      update(...initialInputs);
-
-      return {
-        update: (inputs) => {
-          update(...inputs);
-        },
-      };
     },
   };
 }
@@ -67,13 +68,14 @@ export function buildSink(f) {
     ],
     output: null,
 
-    activate: (initialInputs) => {
-      f(initialInputs[0].value);
-      return {
-        update: (inputs) => {
-          f(inputs[0].value);
-        },
-      };
+    activation: class {
+      constructor(setOutput) {
+        this.setOutput = setOutput;
+      }
+
+      evaluate([v]) {
+        f(v.value);
+      }
     },
   };
 }

@@ -15,12 +15,16 @@ describe('runtime', () => {
     def.addConnection(def.definitionInputs[0], def.definitionOutput);
 
     const outputCallback = jest.fn();
-    const act = def.activate([{value: 123, changed: true}], outputCallback);
+    const act = def.activate(outputCallback);
+
+    expect(outputCallback).not.toBeCalled();
+
+    act.evaluate([{value: 123, changed: true}]);
 
     expect(outputCallback.mock.calls).toEqual([[123]]);
     outputCallback.mockClear();
 
-    act.update([{value: 456, changed: true}]);
+    act.evaluate([{value: 456, changed: true}]);
 
     expect(outputCallback.mock.calls).toEqual([[456]]);
   });
@@ -34,8 +38,13 @@ describe('runtime', () => {
     });
 
     const outputCallback = jest.fn();
-    const act = def.activate([{value: 123, changed: true}], outputCallback);
+    const act = def.activate(outputCallback);
 
+    expect(outputCallback).not.toBeCalled();
+
+    act.evaluate([{value: 123, changed: true}]);
+
+    // NOTE: Since connection hasn't been made, output will still be undefined
     // TODO: We might change expectation to be that outputCallback is called with undefined value
     expect(outputCallback).not.toBeCalled();
     outputCallback.mockClear();
@@ -45,7 +54,7 @@ describe('runtime', () => {
     expect(outputCallback.mock.calls).toEqual([[123]]);
     outputCallback.mockClear();
 
-    act.update([{value: 456, changed: true}]);
+    act.evaluate([{value: 456, changed: true}]);
 
     expect(outputCallback.mock.calls).toEqual([[456]]);
   });
@@ -74,10 +83,16 @@ describe('runtime', () => {
     expect(mockSink).not.toBeCalled();
 
     const outputCallback = jest.fn();
-    const act = def.activate([], outputCallback);
+    const act = def.activate(outputCallback);
+
+    // Nothing should have been called yet since we haven't done first evaluate()
+    expect(outputCallback).not.toBeCalled();
+    expect(mockAdd).not.toBeCalled();
+    expect(mockSink).not.toBeCalled();
+
+    act.evaluate();
 
     expect(outputCallback).not.toBeCalled();
-
     expect(mockAdd.mock.calls.length).toBe(1);
     expect(mockSink.mock.calls).toEqual([[5]]);
   });

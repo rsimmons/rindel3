@@ -1,6 +1,6 @@
 import { nativeDefinitionHelpers } from 'dynamic-runtime';
 
-const {buildConstant, buildPointwiseUnary, buildPointwiseBinary} = nativeDefinitionHelpers;
+const {buildConstant, buildPointwiseUnary, buildPointwiseBinary, buildSink} = nativeDefinitionHelpers;
 
 export const one = buildConstant(1);
 export const oneToTen = buildConstant([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
@@ -25,35 +25,32 @@ export const grid = buildPointwiseUnary(size => {
 export const add = buildPointwiseBinary((a, b) => a + b);
 export const addVec = buildPointwiseBinary((a, b) => ({x: a.x+b.x, y: a.y+b.y}), true);
 
+export const consoleLog = buildSink(v => { console.log(v) });
+
 export const constantJS = {
   inputs: [],
   output: {tempo: 'step'},
   defaultSettings: {valueString: '0'},
 
-  activate: (initialInputs, onOutputChange, functionArguments, initialSettings) => {
-    let currentSettings = initialSettings;
+  activation: class {
+    constructor(setOutput, functionArguments, initialSettings) {
+      this.setOutput = setOutput;
+      this.settings = initialSettings;
+    }
 
-    const updateOutput = () => {
+    evaluate() {
       let value = undefined;
       try {
-        value = eval('(' + currentSettings.valueString + ')');
+        value = eval('(' + this.settings.valueString + ')');
       } catch(e) {
         // ignore
       }
-      onOutputChange(value);
-    };
+      this.setOutput(value);
+    }
 
-    updateOutput();
-
-    return {
-      changeSettings: (newSettings) => {
-        currentSettings = newSettings;
-      },
-
-      update: () => {
-        updateOutput();
-      },
-    };
+    changeSettings(newSettings) {
+      this.settings = newSettings;
+    }
   },
 
   ui: class {
@@ -73,27 +70,6 @@ export const constantJS = {
     }
   },
 };
-
-export const consoleLog = {
-  inputs: [
-    {tempo: 'step'},
-  ],
-  output: null,
-
-  activate: (initialInputs) => {
-    const log = (v) => {
-      console.log('consoleLog', v);
-    }
-
-    log(initialInputs[0].value);
-
-    return {
-      update: (inputs) => {
-        log(inputs[0].value);
-      }
-    };
-  }
-}
 
 export const displayAsString = {
   inputs: [

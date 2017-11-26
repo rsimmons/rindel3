@@ -157,6 +157,8 @@ export default class UserDefinition {
       act.addedNativeApplication(app);
     }
 
+    this.recursiveActivationsUpdate();
+
     return app;
   }
 
@@ -171,8 +173,8 @@ export default class UserDefinition {
     this.recursiveActivationsUpdate();
   }
 
-  activate(initialInputs, onOutputChange, functionArguments) {
-    const activation = new UserActivation(this, initialInputs, onOutputChange, functionArguments);
+  activate(onOutputChange, functionArguments) {
+    const activation = new UserActivation(this, onOutputChange, functionArguments);
 
     // Add the new activation to the set of _all_ activations of this definition
     this.activations.add(activation);

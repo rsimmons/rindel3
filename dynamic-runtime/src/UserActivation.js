@@ -5,31 +5,26 @@ import activateNativeDefinition from './activateNativeDefinition';
 
 // Activation of a user-defined (not native) function. This is the "internal" bookkeeping/state of the activation.
 export default class UserActivation {
-  constructor(definition, initialInputs, onOutputChange, functionArguments) {
+  constructor(definition, setOutput, functionArguments) {
     this.definition = definition;
-    this.onOutputChange = onOutputChange;
+    this.setOutput = setOutput;
 
     // Maps from OutPort and InPort objects to their corresponding Stream objects for this activation
     this.outPortStream = new Map();
     this.inPortStream = new Map();
 
-    this.updating = false;
-    this.priorityQueue = new PriorityQueue(); // this should be empty unless we're updating
+    this.evaluating = false;
+    this.priorityQueue = new PriorityQueue();
     this.currentInstant = 1; // before pump this is next instant, during pump it's current instant
 
     // Map from native applications (within this user-defined function) to their activation wrappers (NativeApplication -> ApplicationWrapper)
     //  We need this so that we can deactivate these activations if we remove the native application.
     this.containedNativeApplicationActivationControl = new Map();
 
-    this.initializing = true;
-
-    // Create streams for internal side of function inputs, setting+flowing initial values from initialInputs
-    assert(initialInputs.length === definition.definitionInputs.length);
-    for (let i = 0; i < initialInputs.length; i++) {
-      const outPort = definition.definitionInputs[i];
-      const stream = new Stream();
-      this.outPortStream.set(outPort, stream);
-      this._setFlowOutPort(outPort, initialInputs[i].value);
+    // Create streams for "internal side" of function inputs
+    for (const outPort of definition.definitionInputs) {
+      const outStream = new Stream();
+      this.outPortStream.set(outPort, outStream);
     }
 
     // Activate native applications (which will create streams, pulling in initial values if any).
@@ -37,19 +32,13 @@ export default class UserActivation {
     for (const napp of definition.nativeApplications) {
       this._activateNativeApplication(napp);
     }
-
-    // Check if we have any immediate/initial output
-    this._emitOutput(false);
-
-    this.initializing = false;
   }
 
-  update(inputs) {
+  evaluate(inputs = []) {
     assert(inputs.length === this.definition.definitionInputs.length);
 
-    assert(!this.updating);
-    assert(this.priorityQueue.isEmpty());
-    this.updating = true;
+    assert(!this.evaluating);
+    this.evaluating = true;
 
     for (let i = 0; i < inputs.length; i++) {
       const outPort = this.definition.definitionInputs[i];
@@ -72,7 +61,7 @@ export default class UserActivation {
     // Pump to process these updated inputs
     this.pump();
 
-    this.updating = false;
+    this.evaluating = false;
   }
 
   destroy() {
@@ -84,8 +73,8 @@ export default class UserActivation {
   }
 
   definitionChanged(subdefPath) {
-    assert(!this.updating);
-    this.updating = true;
+    assert(!this.evaluating);
+    this.evaluating = true;
 
     if (subdefPath.length > 0) {
       const firstSubdef = subdefPath[0];
@@ -102,22 +91,19 @@ export default class UserActivation {
     }
 
     this.pump();
-    this.updating = false;
+    this.evaluating = false;
   }
 
   // Let the activation know that a native application was added to the definition
   addedNativeApplication(app) {
-    assert(!this.updating); // TODO: necessary/useful?
+    assert(!this.evaluating); // TODO: necessary/useful?
 
     this._activateNativeApplication(app);
-
-    // TODO: Might we need to pump? Not sure if it's necessary. For now, assert that there is nothing to be pumped.
-    assert(this.priorityQueue.isEmpty());
   }
 
   // Let the activation know that a connection was added to the definition
   addedConnection(cxn) {
-    assert(!this.updating); // TODO: necessary/useful?
+    assert(!this.evaluating); // TODO: necessary/useful?
 
     // NOTE: I think it should not be necessary to flow the connection if the ports are event-tempo,
     // but that's not a very important optimization.
@@ -129,7 +115,7 @@ export default class UserActivation {
     const actControl = this.containedNativeApplicationActivationControl.get(app);
     actControl.changeSettings(newSettings);
 
-    this._insertAppUpdateTask(app);
+    this._insertAppEvalTask(app);
   }
 
   _gatherNativeApplicationInputs(nativeApplication, initial) {
@@ -200,11 +186,8 @@ export default class UserActivation {
       outStreams.push(stream);
     }
 
-    // Gather initial inputs from streams
-    const initialInputs = this._gatherNativeApplicationInputs(nativeApplication, true);
-
-    // Create onOutputChange callback that sets/flows the changed output streams
-    const onOutputChange = (outVal) => {
+    // Create setOutput callback that sets/flows the changed output streams
+    const setOutput = (outVal) => {
       if (nativeApplication.output instanceof Map) {
         // Compound output
         for (const [n, v] of outVal) {
@@ -217,31 +200,27 @@ export default class UserActivation {
         assert(false); // callback should not be called if no outputs
       }
 
-      // If we aren't already updating, then this must have been a async output, so we start updating.
+      // If we aren't already evaluating, then this must have been a async output, so we start evaluating.
       // NOTE: We could set a flag when we enter/exit activation and update calls to determine
       // whether this call is truly async or not, and use this as a sanity check against the
-      // current state of the updating flag (this.updating iff not-async-output).
-      if (!this.initializing && !this.updating) {
-        this.updating = true;
+      // current state of the evaluating flag (this.evaluating iff not-async-output).
+      if (!this.evaluating) {
+        this.evaluating = true;
         this.pump();
-        this.updating = false;
+        this.evaluating = false;
       }
     };
 
-    const activationControl = activateNativeDefinition(nativeApplication.definition, initialInputs, onOutputChange, nativeApplication.functionArguments, nativeApplication.settings);
-
-    // If lastChangedInstant is still undefined on any output streams, set it to current instant
-    for (const stream of outStreams) {
-      if (stream.lastChangedInstant === undefined) {
-        stream.lastChangedInstant = this.currentInstant;
-      }
-    }
+    const activationControl = activateNativeDefinition(nativeApplication.definition, setOutput, nativeApplication.functionArguments, nativeApplication.settings);
 
     // Store the new activation in the containing activation
     this.containedNativeApplicationActivationControl.set(nativeApplication, activationControl);
+
+    // Insert a task to do the initial evaluation of this application's activation
+    this._insertAppEvalTask(nativeApplication);
   }
 
-  _insertAppUpdateTask(app) {
+  _insertAppEvalTask(app) {
     const priority = app.sortIndex;
     assert(priority !== undefined);
     this.priorityQueue.insert(priority, {
@@ -256,7 +235,7 @@ export default class UserActivation {
     const owner = inPort.owner;
     switch (owner.tag) {
       case 'napp':
-        this._insertAppUpdateTask(owner.nativeApplication);
+        this._insertAppEvalTask(owner.nativeApplication);
         break;
 
       case 'def':
@@ -289,10 +268,8 @@ export default class UserActivation {
       this.inPortStream.set(cxn.inPort, new Stream(outStream.latestValue, this.currentInstant));
     }
 
-    // Don't trigger updating stuff when we're initializing.
-    if (!this.initializing) {
-      this._notifyInPort(cxn.inPort); // trigger anything "listening" on this port
-    }
+    // Trigger anything "listening" on this port
+    this._notifyInPort(cxn.inPort);
   }
 
   // Set the value of the given outPort in the context of activation (which corresponds to a specific stream),
@@ -311,7 +288,7 @@ export default class UserActivation {
   }
 
   _emitOutput(mustBePresent) {
-    // Check definition-output stream(s), and if any have changed then call this.onOutputChange.
+    // Check definition-output stream(s), and if any have changed then call this.setOutput.
     // If mustBePresent is true, then assert if no changes were found.
     // NOTE: We only emit outputs that have changed.
     if (this.definition.definitionOutput instanceof Map) {
@@ -328,13 +305,13 @@ export default class UserActivation {
       assert(!(mustBePresent && changedOutputs.size === 0));
 
       if (changedOutputs.size) {
-        this.onOutputChange(changedOutputs);
+        this.setOutput(changedOutputs);
       }
     } else if (this.definition.definitionOutput) {
       const stream = this.inPortStream.get(this.definition.definitionOutput);
 
       if (stream && (stream.lastChangedInstant === this.currentInstant)) {
-        this.onOutputChange(stream.latestValue);
+        this.setOutput(stream.latestValue);
       }
     } else {
       assert(!mustBePresent);
@@ -357,7 +334,7 @@ export default class UserActivation {
   }
 
   pump() {
-    assert(this.updating);
+    assert(this.evaluating);
 
     const pq = this.priorityQueue;
     const instant = this.currentInstant;
@@ -375,7 +352,7 @@ export default class UserActivation {
           const {nativeApplication} = task;
           const activationControl = this.containedNativeApplicationActivationControl.get(nativeApplication);
           const inputs = this._gatherNativeApplicationInputs(nativeApplication, false);
-          activationControl.update(inputs);
+          activationControl.evaluate(inputs);
           break;
 
         case 'defout':
