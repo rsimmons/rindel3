@@ -25,7 +25,7 @@ export const grid = buildPointwiseUnary(size => {
 export const add = buildPointwiseBinary((a, b) => a + b);
 export const addVec = buildPointwiseBinary((a, b) => ({x: a.x+b.x, y: a.y+b.y}), true);
 
-export const constantEval = {
+export const constantJS = {
   inputs: [],
   output: {tempo: 'step'},
   defaultSettings: {valueString: '0'},
