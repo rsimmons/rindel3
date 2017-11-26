@@ -59,3 +59,21 @@ export function buildPointwiseBinary(f, filterUndef) {
     },
   };
 }
+
+export function buildSink(f) {
+  return {
+    inputs: [
+      {tempo: 'step'},
+    ],
+    output: null,
+
+    activate: (initialInputs) => {
+      f(initialInputs[0].value);
+      return {
+        update: (inputs) => {
+          f(inputs[0].value);
+        },
+      };
+    },
+  };
+}

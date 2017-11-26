@@ -1,6 +1,7 @@
 'use strict';
 
 import UserDefinition from '../UserDefinition';
+import { buildConstant, buildPointwiseUnary, buildPointwiseBinary, buildSink } from '../nativeDefinitionHelpers';
 
 describe('runtime', () => {
   test('user defined identity function', () => {
