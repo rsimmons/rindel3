@@ -236,51 +236,49 @@ export const map = {
   ],
   output: {tempo: 'step'},
 
-  activate: (initialInputs, onOutputChange, functionArguments) => {
-    const f = functionArguments.get('f');
-    const activationsValues = [];
-    let updating = false; // we use this to determine when outputs are async
-    let anyOutputChanged;
+  activation: class {
+    constructor(setOutput, functionArguments) {
+      this.setOutput = setOutput;
 
-    const emitOutput = () => {
-      onOutputChange(activationsValues.map(av => av.value));
-    };
+      this.f = functionArguments.get('f');
+      this.activationsValues = [];
+      this.evaluatingSubacts = false; // we use this to determine when outputs are async
+    }
 
-    const update = (arr) => {
-      arr = arr || [];
+    evaluate(inputs) {
+      const emitOutput = () => {
+        this.setOutput(this.activationsValues.map(av => av.value));
+      };
+
+      const arr = inputs[0].value || [];
 
       // Trim any excess activations
-      if (activationsValues.length > arr.length) {
-        for (let i = arr.length; i < activationsValues.length; i++) {
-          activationsValues[i].activation.destroy();
+      if (this.activationsValues.length > arr.length) {
+        for (let i = arr.length; i < this.activationsValues.length; i++) {
+          this.activationsValues[i].activation.destroy();
         }
-        activationsValues.length = arr.length;
+        this.activationsValues.length = arr.length;
       }
 
-      updating = true;
-      anyOutputChanged = false;
+      this.evaluatingSubacts = true;
+      this.anyOutputChanged = false;
 
-      // Push array values to all current activations
-      for (let i = 0; i < activationsValues.length; i++) {
-        activationsValues[i].activation.update([{value: arr[i], changed: true}]);
-      }
-
-      // Create any new activations, pushing initial values
-      if (activationsValues.length < arr.length) {
-        anyOutputChanged = true; // Even if sub-act doesn't output, it will add undefined to output array
-        for (let i = activationsValues.length; i < arr.length; i++) {
-          activationsValues.push({
+      // Create any new activations
+      if (this.activationsValues.length < arr.length) {
+        this.anyOutputChanged = true; // Even if sub-act doesn't output, it will add undefined to output array
+        for (let i = this.activationsValues.length; i < arr.length; i++) {
+          this.activationsValues.push({
             activation: undefined,
             value: undefined,
           });
 
           (idx => {
-            activationsValues[idx].activation = f.activate([{value: arr[idx], changed: true}], (changedOutput) => {
-              activationsValues[idx].value = changedOutput;
+            this.activationsValues[idx].activation = this.f.activate((changedOutput) => {
+              this.activationsValues[idx].value = changedOutput;
 
-              if (updating) {
+              if (this.evaluatingSubacts) {
                 // We wait to collect all changed outputs before we emit the result array
-                anyOutputChanged = true;
+                this.anyOutputChanged = true;
               } else {
                 // This means the sub-activation output was async, so we async emit our array output
                 emitOutput();
@@ -290,40 +288,38 @@ export const map = {
         }
       }
 
-      if (anyOutputChanged) {
+      // Push array values to all current activations
+      for (let i = 0; i < this.activationsValues.length; i++) {
+        this.activationsValues[i].activation.evaluate([{value: arr[i], changed: true}]);
+      }
+
+      if (this.anyOutputChanged) {
         emitOutput();
       }
 
-      updating = false;
-    };
+      this.evaluatingSubacts = false;
+    }
 
-    // Handle initial inputs
-    update(initialInputs[0].value);
+    definitionChanged(subdefPath) {
+      if (subdefPath.length < 1) {
+        throw new Error('internal error');
+      }
+      const firstSubdef = subdefPath[0];
+      const restSubdefs = subdefPath.slice(1);
+      if (firstSubdef !== this.f) {
+        throw new Error('internal error');
+      }
 
-    return {
-      update: (inputs) => {
-        update(inputs[0].value);
-      },
-      destroy: () => {
-        for (const av of activationsValues) {
-          av.activation.destroy();
-        }
-      },
-      definitionChanged: (subdefPath) => {
-        if (subdefPath.length < 1) {
-          throw new Error('internal error');
-        }
-        const firstSubdef = subdefPath[0];
-        const restSubdefs = subdefPath.slice(1);
-        if (firstSubdef !== f) {
-          throw new Error('internal error');
-        }
+      for (const av of this.activationsValues) {
+        av.activation.definitionChanged(restSubdefs);
+      }
+    }
 
-        for (const av of activationsValues) {
-          av.activation.definitionChanged(restSubdefs);
-        }
-      },
-    };
+    destroy() {
+      for (const av of this.activationsValues) {
+        av.activation.destroy();
+      }
+    }
   },
 };
 
