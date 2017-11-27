@@ -122,11 +122,19 @@ export default class UserActivation {
 
   // Let the activation know that a connection was added to the definition
   addedConnection(cxn) {
-    assert(!this.evaluating); // TODO: necessary/useful?
+    assert(!this.evaluating);
 
     // NOTE: I think it should not be necessary to flow the connection if the ports are event-tempo,
     // but that's not a very important optimization.
     this._flowConnection(cxn);
+  }
+
+  // Let the activation know that a connection was removed from the definition
+  removedConnection(cxn) {
+    assert(!this.evaluating);
+
+    // Flow the removal of the connection
+    this._flowConnection(cxn, true);
   }
 
   // Set the settings on an application
@@ -275,18 +283,25 @@ export default class UserActivation {
 
   // Propagate value change along the given connection within the context of the given activation (at the source/out side),
   //  and "notify" any input ports whose values have changed. We create the downstream Stream object if it doesn't already exist.
-  // TODO: We could use this same function to flow an undefined when we disconnect a connection. Could take an optional "value override" parameter
-  _flowConnection(cxn) {
+  //  If removal argument is true, then flow an undefined value along the connection (because connection is being removed).
+  _flowConnection(cxn, removal = false) {
     // TODO: Handle connections that enter a contained definition
     assert(cxn.path.length === 0);
 
-    const outStream = this.outPortStream.get(cxn.outPort);
+    let flowValue;
+    if (removal) {
+      flowValue = undefined;
+    } else {
+      // NOTE: The lastChangedInstant of outStream may not be the current instant,
+      // e.g. if this copying is the result of flowing a newly added connection.
+      const outStream = this.outPortStream.get(cxn.outPort);
+      flowValue = outStream.latestValue;
+    }
+
     const inStream = this.inPortStream.get(cxn.inPort);
 
-    // NOTE: The lastChangedInstant of outStream may not be the current instant,
-    // e.g. if this copying is the result of flowing a newly added connection.
-    // TODO: Ensure that stream's last changed instant is less than current instant?
-    inStream.setValue(outStream.latestValue, this.currentInstant);
+    // TODO: Ensure that inStream's last changed instant is less than current instant?
+    inStream.setValue(flowValue, this.currentInstant);
 
     // Trigger anything "listening" on this port
     this._notifyInPort(cxn.inPort);

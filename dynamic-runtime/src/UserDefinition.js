@@ -179,6 +179,19 @@ export default class UserDefinition {
     this.recursiveActivationsUpdate();
   }
 
+  disconnectPort(portObj) {
+    if (portObj instanceof InPort) {
+      this._removeConnection(portObj.connection);
+    } else {
+      assert(portObj instanceof OutPort);
+      for (const cxn of portObj.connections) {
+        this._removeConnection(cxn);
+      }
+    }
+
+    this.recursiveActivationsUpdate();
+  }
+
   setApplicationSettings(nativeApplication, newSettings) {
     assert(this.nativeApplications.has(nativeApplication));
 
@@ -303,6 +316,23 @@ export default class UserDefinition {
     }
 
     this.recursiveActivationsUpdate();
+  }
+
+  _removeConnection(cxn) {
+    assert(this.connections.has(cxn));
+
+    cxn.outPort.connections.delete(cxn);
+    cxn.inPort.connection = null;
+    this.connections.delete(cxn);
+
+    // NOTE: It should not be necessary to update the topological sort
+
+    // Let all activations of this definition know that a connection was removed
+    for (const act of this.activations) {
+      act.removedConnection(cxn);
+    }
+
+    // NOTE: Since this is an "internal" method, we don't call recursiveActivationsUpdate()
   }
 
   _topologicalSortTraverseFromOutPort(outPort, traversingNapps, finishedNapps, reverseResult) {

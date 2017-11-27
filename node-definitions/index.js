@@ -252,8 +252,11 @@ export const map = {
 
       const arr = inputs[0].value || [];
 
+      this.needOutputUpdate = false;
+
       // Trim any excess activations
       if (this.activationsValues.length > arr.length) {
+        this.needOutputUpdate = true;
         for (let i = arr.length; i < this.activationsValues.length; i++) {
           this.activationsValues[i].activation.destroy();
         }
@@ -261,11 +264,10 @@ export const map = {
       }
 
       this.evaluatingSubacts = true;
-      this.anyOutputChanged = false;
 
       // Create any new activations
       if (this.activationsValues.length < arr.length) {
-        this.anyOutputChanged = true; // Even if sub-act doesn't output, it will add undefined to output array
+        this.needOutputUpdate = true; // Even if sub-act doesn't output, it will add undefined to output array
         for (let i = this.activationsValues.length; i < arr.length; i++) {
           this.activationsValues.push({
             activation: undefined,
@@ -278,7 +280,7 @@ export const map = {
 
               if (this.evaluatingSubacts) {
                 // We wait to collect all changed outputs before we emit the result array
-                this.anyOutputChanged = true;
+                this.needOutputUpdate = true;
               } else {
                 // This means the sub-activation output was async, so we async emit our array output
                 emitOutput();
@@ -293,7 +295,7 @@ export const map = {
         this.activationsValues[i].activation.evaluate([{value: arr[i], changed: true}]);
       }
 
-      if (this.anyOutputChanged) {
+      if (this.needOutputUpdate) {
         emitOutput();
       }
 

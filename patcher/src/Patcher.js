@@ -303,7 +303,7 @@ class Patcher extends Component {
   }
 
   handlePortDoubleClick = (portObj) => {
-    this.rootDefinition.disconnectPort(portObj);
+    portObj.containingDefinition.disconnectPort(portObj);
     this.forceUpdate(); // since we don't keep connections in our own state, need to force to see update
   }
 
