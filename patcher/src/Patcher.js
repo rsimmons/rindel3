@@ -63,9 +63,7 @@ class Patcher extends Component {
     this.state = {
       creatingNode: null,
       appExtra: new IMap(), // NativeApplication -> AppExtra
-      defExtra: new IMap([[this.rootDefinition, new DefExtra({viewOffset: {x: 0, y: 0}})]])
-
-      , // UserDefinition -> DefExtra
+      defExtra: new IMap([[this.rootDefinition, new DefExtra({viewOffset: {x: 0, y: 0}})]]), // UserDefinition -> DefExtra
       selectedPort: null,
     };
 
