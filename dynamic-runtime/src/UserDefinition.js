@@ -162,6 +162,23 @@ export default class UserDefinition {
     return app;
   }
 
+  removeNativeApplication(nativeApplication) {
+    // TODO: Remove all connections first, using an "internal" method that doesn't call recursiveActivationsUpdate
+
+    for (const [def, apps] of definitionToUsingApplications) {
+      apps.delete(nativeApplication);
+    }
+
+    this.nativeApplications.delete(app);
+
+    // Let all activations of this definition know that a native application was removed
+    for (const act of this.activations) {
+      act.removedNativeApplication(app);
+    }
+
+    this.recursiveActivationsUpdate();
+  }
+
   setApplicationSettings(nativeApplication, newSettings) {
     assert(this.nativeApplications.has(nativeApplication));
 

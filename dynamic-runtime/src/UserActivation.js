@@ -106,9 +106,18 @@ export default class UserActivation {
 
   // Let the activation know that a native application was added to the definition
   addedNativeApplication(app) {
-    assert(!this.evaluating); // TODO: necessary/useful?
+    assert(!this.evaluating);
 
     this._activateNativeApplication(app);
+  }
+
+  // Let the activation know that a native application was removed from the definition
+  removedNativeApplication(app) {
+    assert(!this.evaluating);
+
+    const actControl = this.containedNativeApplicationActivationControl.get(app);
+
+    actControl.destroy();
   }
 
   // Let the activation know that a connection was added to the definition
