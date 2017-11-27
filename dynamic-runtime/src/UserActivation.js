@@ -21,10 +21,20 @@ export default class UserActivation {
     //  We need this so that we can deactivate these activations if we remove the native application.
     this.containedNativeApplicationActivationControl = new Map();
 
-    // Create streams for "internal side" of function inputs
+    // Create streams for "internal side" of function inputs and outputs
     for (const outPort of definition.definitionInputs) {
       const outStream = new Stream();
       this.outPortStream.set(outPort, outStream);
+    }
+
+    if (definition.definitionOutput instanceof Map) {
+      for (const [n, inPort] of definition.definitionOutput) {
+        const inStream = new Stream();
+        this.inPortStream.set(inPort, inStream);
+      }
+    } else if (definition.definitionOutput) {
+      const inStream = new Stream();
+      this.inPortStream.set(definition.definitionOutput, inStream);
     }
 
     // Activate native applications (which will create streams, pulling in initial values if any).
@@ -171,6 +181,11 @@ export default class UserActivation {
     //  and store the streams in the containing activation.
 
     // Create and store the streams
+    for (const inPort of nativeApplication.inputs) {
+      const stream = new Stream();
+      this.inPortStream.set(inPort, stream);
+    }
+
     const outStreams = []; // We'll use this below
     if (nativeApplication.output instanceof Map) {
       // Compound output
@@ -257,16 +272,12 @@ export default class UserActivation {
     assert(cxn.path.length === 0);
 
     const outStream = this.outPortStream.get(cxn.outPort);
-    const inStream = this.inPortStream.get(cxn.inPort); // NOTE: May be undefined
+    const inStream = this.inPortStream.get(cxn.inPort);
 
     // NOTE: The lastChangedInstant of outStream may not be the current instant,
     // e.g. if this copying is the result of flowing a newly added connection.
-    if (inStream) {
-      // TODO: ensure that stream's last changed instant is less than current instant?
-      inStream.setValue(outStream.latestValue, this.currentInstant);
-    } else {
-      this.inPortStream.set(cxn.inPort, new Stream(outStream.latestValue, this.currentInstant));
-    }
+    // TODO: Ensure that stream's last changed instant is less than current instant?
+    inStream.setValue(outStream.latestValue, this.currentInstant);
 
     // Trigger anything "listening" on this port
     this._notifyInPort(cxn.inPort);
