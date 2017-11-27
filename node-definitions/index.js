@@ -77,26 +77,24 @@ export const displayAsString = {
   ],
   output: null,
 
-  activate: (initialInputs, onOutputChange) => {
-    const divElem = document.createElement('div');
-    divElem.style.cssText = 'position: absolute; top: 0; right: 0; pointer-events: none; background: white; border: 1px solid red; color: black; font-size: 24px; padding: 5px';
-    divElem.textContent = '(undefined)';
-    document.body.appendChild(divElem);
+  activation: class {
+    constructor(setOutput) {
+      this.setOutput = setOutput;
 
-    const set = (v) => {
-      divElem.textContent = (v === undefined) ? '(undefined)' : v.toString();
-    };
+      this.divElem = document.createElement('div');
+      this.divElem.style.cssText = 'position: absolute; top: 0; right: 0; pointer-events: none; background: white; border: 1px solid red; color: black; font-size: 24px; padding: 5px';
+      this.divElem.textContent = '(undefined)';
+      document.body.appendChild(this.divElem);
+    }
 
-    set(initialInputs[0].value);
+    evaluate(inputs) {
+      const v = inputs[0].value;
+      this.divElem.textContent = (v === undefined) ? '(undefined)' : v.toString();
+    }
 
-    return {
-      update: (inputs) => {
-        set(inputs[0].value);
-      },
-      destroy: () => {
-        document.body.removeChild(divElem);
-      },
-    };
+    destroy() {
+      document.body.removeChild(this.divElem);
+    }
   },
 };
 
@@ -104,22 +102,25 @@ export const animationTime = {
   inputs: [],
   output: {tempo: 'step'},
 
-  activate: (initialInputs, onOutputChange) => {
-    let reqId;
+  activation: class {
+    constructor(setOutput) {
+      this.setOutput = setOutput;
+      this.onFrame = this.onFrame.bind(this);
+    }
 
-    const onFrame = (time) => {
-      onOutputChange(0.001*time);
-      reqId = requestAnimationFrame(onFrame);
-    };
+    onFrame(time) {
+      this.setOutput(0.001*time);
+      this.reqId = requestAnimationFrame(this.onFrame);
+    }
 
-    // Set initial output to reasonable value and kick off updates
-    onFrame(performance.now());
+    evaluate() {
+      // Set initial output to reasonable value and kick off updates
+      this.onFrame(performance.now());
+    }
 
-    return {
-      destroy: () => {
-        cancelAnimationFrame(reqId);
-      },
-    };
+    destroy() {
+      cancelAnimationFrame(this.reqId);
+    }
   },
 };
 
@@ -127,27 +128,34 @@ export const mouseDown = {
   inputs: [],
   output: {tempo: 'step'},
 
-  activate: (initialInputs, onOutputChange) => {
-    const onMouseDown = () => {
-      onOutputChange(true);
-    };
+  activation: class {
+    constructor(setOutput) {
+      this.setOutput = setOutput;
 
-    const onMouseUp = () => {
-      onOutputChange(false);
-    };
+      this.onMouseDown = this.onMouseDown.bind(this);
+      this.onMouseUp = this.onMouseUp.bind(this);
 
-    document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('mouseup', onMouseUp);
+      document.addEventListener('mousedown', this.onMouseDown);
+      document.addEventListener('mouseup', this.onMouseUp);
+    }
 
-    // Set initial output (we assume up, but will be fine if already up)
-    onOutputChange(false);
+    onMouseDown() {
+      this.setOutput(true);
+    }
 
-    return {
-      destroy: () => {
-        document.removeEventListener('mousedown', onMouseDown);
-        document.removeEventListener('mouseup', onMouseUp);
-      }
-    };
+    onMouseUp() {
+      this.setOutput(false);
+    }
+
+    evaluate() {
+      // Set initial output (we assume up, but will be fine if already up)
+      this.setOutput(false);
+    }
+
+    destroy() {
+      document.removeEventListener('mousedown', this.onMouseDown);
+      document.removeEventListener('mouseup', this.onMouseUp);
+    }
   },
 };
 
@@ -155,60 +163,62 @@ export const mousePos = {
   inputs: [],
   output: {tempo: 'step'},
 
-  activate: (initialInputs, onOutputChange) => {
-    const onMouseMove = (e) => {
-      onOutputChange({
+  activation: class {
+    constructor(setOutput) {
+      this.setOutput = setOutput;
+
+      this.onMouseMove = this.onMouseMove.bind(this);
+
+      document.addEventListener('mousemove', this.onMouseMove);
+    }
+
+    onMouseMove(e) {
+      this.setOutput({
         x: e.clientX || e.pageX,
         y: e.clientY || e.pageY,
       });
-    };
+    }
 
-    document.addEventListener('mousemove', onMouseMove);
+    evaluate() {
+      // Initial output (before any movement) must be 0,0 unfortunately, can't poll mouse position
+      this.setOutput({x: 0, y: 0});
+    }
 
-    // Initial output (before any movement) must be 0,0 unfortunately, can't poll mouse position
-    onOutputChange({x: 0, y: 0});
-
-    return {
-      destroy: () => {
-        document.removeEventListener('mousemove', onMouseMove);
-      },
-    };
+    destroy() {
+      document.removeEventListener('mousemove', this.onMouseMove);
+    }
   },
 };
 
-// TODO: Should we hide it if input coords are undefined?
 export const redSquare = {
   inputs: [
     {tempo: 'step', name: 'position'},
   ],
   output: null,
 
-  activate: (initialInputs, onOutputChange) => {
-    const squareElem = document.createElement('div');
-    squareElem.style.cssText = 'position: absolute; width: 20px; height: 20px; border: 1px solid black; background: red; pointer-events: none;';
-    document.body.appendChild(squareElem);
+  activation: class {
+    constructor(setOutput) {
+      this.setOutput = setOutput;
 
-    const update = (inputs) => {
+      this.squareElem = document.createElement('div');
+      this.squareElem.style.cssText = 'position: absolute; width: 20px; height: 20px; border: 1px solid black; background: red; pointer-events: none;';
+      document.body.appendChild(this.squareElem);
+    }
+
+    evaluate(inputs) {
       const p = inputs[0].value;
       if (p === undefined) {
+        // TODO: Should we hide it if undefined?
         return;
       }
 
-      squareElem.style.left = p.x + 'px';
-      squareElem.style.top = p.y + 'px';
-    };
+      this.squareElem.style.left = p.x + 'px';
+      this.squareElem.style.top = p.y + 'px';
+    }
 
-    update(initialInputs);
-
-    return {
-      update: (inputs) => {
-        update(inputs);
-      },
-
-      destroy: () => {
-        document.body.removeChild(squareElem);
-      },
-    };
+    destroy() {
+      document.body.removeChild(this.squareElem);
+    }
   },
 };
 
