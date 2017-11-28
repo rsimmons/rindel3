@@ -118,4 +118,46 @@ describe('runtime', () => {
     expect(mockAdd.mock.calls.length).toBe(1);
     expect(mockSink.mock.calls).toEqual([[5]]);
   });
+
+  test('removing connection via disconnectPort from either end', () => {
+    const constDef = buildConstant(123);
+
+    const mockSink = jest.fn();
+    const sinkDef = buildSink(mockSink);
+
+    const def = new UserDefinition();
+    const constApp = def.addNativeApplication(constDef);
+    const sinkApp = def.addNativeApplication(sinkDef);
+    const act = def.activate();
+
+    expect(mockSink).not.toBeCalled(); // sanity check
+
+    act.evaluate();
+    // Since there is no connection and we did initial eval, sink will get eval'd with undefined
+    expect(mockSink.mock.calls).toEqual([[undefined]]);
+    mockSink.mockClear();
+
+    def.addConnection(constApp.output, sinkApp.inputs[0]);
+
+    expect(mockSink.mock.calls).toEqual([[123]]);
+    mockSink.mockClear();
+
+    // disconnect from output end
+    def.disconnectPort(constApp.output);
+
+    expect(mockSink.mock.calls).toEqual([[undefined]]);
+    mockSink.mockClear();
+
+    // re-add connection
+    def.addConnection(constApp.output, sinkApp.inputs[0]);
+
+    expect(mockSink.mock.calls).toEqual([[123]]);
+    mockSink.mockClear();
+
+    // disconnect from input end
+    def.disconnectPort(sinkApp.inputs[0]);
+
+    expect(mockSink.mock.calls).toEqual([[undefined]]);
+    mockSink.mockClear();
+  });
 });
