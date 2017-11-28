@@ -163,7 +163,17 @@ export default class UserDefinition {
   }
 
   removeNativeApplication(nativeApplication) {
-    // TODO: Remove all connections first, using an "internal" method that doesn't call recursiveActivationsUpdate
+    // Remove all connections first
+    for (const inPort of nativeApplication.inputs) {
+      this._disconnectPort(inPort);
+    }
+    if (nativeApplication.output instanceof Map) {
+      for (const [n, outPort] of nativeApplication.output) {
+        this._disconnectPort(outPort);
+      }
+    } else if (nativeApplication.output) {
+      this._disconnectPort(nativeApplication.output);
+    }
 
     for (const [def, apps] of definitionToUsingApplications) {
       apps.delete(nativeApplication);
@@ -179,7 +189,7 @@ export default class UserDefinition {
     this.recursiveActivationsUpdate();
   }
 
-  disconnectPort(portObj) {
+  _disconnectPort(portObj) {
     if (portObj instanceof InPort) {
       this._removeConnection(portObj.connection);
     } else {
@@ -188,6 +198,10 @@ export default class UserDefinition {
         this._removeConnection(cxn);
       }
     }
+  }
+
+  disconnectPort(portObj) {
+    this._disconnectPort(portObj);
 
     this.recursiveActivationsUpdate();
   }
