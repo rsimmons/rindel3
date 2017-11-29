@@ -245,11 +245,11 @@ export const map = {
       this.evaluatingSubacts = false; // we use this to determine when outputs are async
     }
 
-    evaluate(inputs) {
-      const emitOutput = () => {
-        this.setOutput(this.activationsValues.map(av => av.value));
-      };
+    emitOutput() {
+      this.setOutput(this.activationsValues.map(av => av.value));
+    }
 
+    evaluate(inputs) {
       const arr = inputs[0].value || [];
 
       this.needOutputUpdate = false;
@@ -283,7 +283,7 @@ export const map = {
                 this.needOutputUpdate = true;
               } else {
                 // This means the sub-activation output was async, so we async emit our array output
-                emitOutput();
+                this.emitOutput();
               }
             });
           })(i);
@@ -296,7 +296,7 @@ export const map = {
       }
 
       if (this.needOutputUpdate) {
-        emitOutput();
+        this.emitOutput();
       }
 
       this.evaluatingSubacts = false;
@@ -306,15 +306,24 @@ export const map = {
       if (subdefPath.length < 1) {
         throw new Error('internal error');
       }
+
+      this.evaluatingSubacts = true;
+
       const firstSubdef = subdefPath[0];
       const restSubdefs = subdefPath.slice(1);
-      if (firstSubdef !== this.f) {
+      if (firstSubdef !== this.f.definition) {
         throw new Error('internal error');
       }
 
       for (const av of this.activationsValues) {
         av.activation.definitionChanged(restSubdefs);
       }
+
+      if (this.needOutputUpdate) {
+        this.emitOutput();
+      }
+
+      this.evaluatingSubacts = false;
     }
 
     destroy() {
