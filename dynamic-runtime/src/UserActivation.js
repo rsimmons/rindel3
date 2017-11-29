@@ -2,11 +2,13 @@ import assert from './assert';
 import PriorityQueue from './PriorityQueue';
 import Stream from './Stream';
 import activateNativeDefinition from './activateNativeDefinition';
+import UserClosure from './UserClosure';
 
 // Activation of a user-defined (not native) function. This is the "internal" bookkeeping/state of the activation.
 export default class UserActivation {
-  constructor(definition, setOutput, functionArguments) {
+  constructor(definition, containingActivation, setOutput, functionArguments) {
     this.definition = definition;
+    this.containingActivation = containingActivation; // the activation of our containing definition, i.e. our lexical outer scope
     this.setOutput = setOutput;
 
     // Maps from OutPort and InPort objects to their corresponding Stream objects for this activation
@@ -243,7 +245,15 @@ export default class UserActivation {
       }
     };
 
-    const activationControl = activateNativeDefinition(nativeApplication.definition, setOutput, nativeApplication.functionArguments, nativeApplication.settings);
+    // Create "closures" where we bind the function args of this application to this activation
+    const functionArguments = new Map();
+    if (nativeApplication.functionArguments) {
+      for (const [n, f] of nativeApplication.functionArguments) {
+        functionArguments.set(n, new UserClosure(f, this));
+      }
+    }
+
+    const activationControl = activateNativeDefinition(nativeApplication.definition, setOutput, functionArguments, nativeApplication.settings);
 
     // Store the new activation in the containing activation
     this.containedNativeApplicationActivationControl.set(nativeApplication, activationControl);

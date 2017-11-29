@@ -1,21 +1,22 @@
 'use strict';
 
-import UserDefinition from '../UserDefinition';
+import { createRootUserClosure } from '../..';
 import { buildConstant, buildPointwiseUnary, buildPointwiseBinary, buildSink } from '../nativeDefinitionHelpers';
 
 describe('runtime', () => {
   test('user defined identity function', () => {
-    const def = new UserDefinition(null, {
+    const closure = createRootUserClosure({
       inputs: [
         {tempo: 'step'},
       ],
       output: {tempo: 'step'},
     });
+    const def = closure.definition;
 
     def.addConnection(def.definitionInputs[0], def.definitionOutput);
 
     const outputCallback = jest.fn();
-    const act = def.activate(outputCallback);
+    const act = closure.activate(outputCallback);
 
     expect(outputCallback).not.toBeCalled();
 
@@ -30,15 +31,16 @@ describe('runtime', () => {
   });
 
   test('user defined identity function, adding connection after activation', () => {
-    const def = new UserDefinition(null, {
+    const closure = createRootUserClosure({
       inputs: [
         {tempo: 'step'},
       ],
       output: {tempo: 'step'},
     });
+    const def = closure.definition;
 
     const outputCallback = jest.fn();
-    const act = def.activate(outputCallback);
+    const act = closure.activate(outputCallback);
 
     expect(outputCallback).not.toBeCalled();
 
@@ -60,10 +62,11 @@ describe('runtime', () => {
   });
 
   test('constant connected to definition out', () => {
-    const def = new UserDefinition(null, {
+    const closure = createRootUserClosure({
       inputs: [],
       output: {tempo: 'step'},
     });
+    const def = closure.definition;
 
     const constDef = buildConstant(123);
 
@@ -72,7 +75,7 @@ describe('runtime', () => {
     def.addConnection(constApp.output, def.definitionOutput);
 
     const outputCallback = jest.fn();
-    const act = def.activate(outputCallback);
+    const act = closure.activate(outputCallback);
 
     expect(outputCallback).not.toBeCalled();
 
@@ -91,7 +94,8 @@ describe('runtime', () => {
     const mockSink = jest.fn();
     const sinkDef = buildSink(mockSink);
 
-    const def = new UserDefinition();
+    const closure = createRootUserClosure();
+    const def = closure.definition;
     const const2App = def.addNativeApplication(const2Def);
     const const3App = def.addNativeApplication(const3Def);
     const addApp = def.addNativeApplication(addDef);
@@ -105,7 +109,7 @@ describe('runtime', () => {
     expect(mockSink).not.toBeCalled();
 
     const outputCallback = jest.fn();
-    const act = def.activate(outputCallback);
+    const act = closure.activate(outputCallback);
 
     // Nothing should have been called yet since we haven't done first evaluate()
     expect(outputCallback).not.toBeCalled();
@@ -125,10 +129,11 @@ describe('runtime', () => {
     const mockSink = jest.fn();
     const sinkDef = buildSink(mockSink);
 
-    const def = new UserDefinition();
+    const closure = createRootUserClosure();
+    const def = closure.definition;
     const constApp = def.addNativeApplication(constDef);
     const sinkApp = def.addNativeApplication(sinkDef);
-    const act = def.activate();
+    const act = closure.activate();
 
     expect(mockSink).not.toBeCalled(); // sanity check
 

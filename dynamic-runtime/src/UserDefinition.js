@@ -217,13 +217,17 @@ export default class UserDefinition {
     this.recursiveActivationsUpdate();
   }
 
-  activate(onOutputChange, functionArguments) {
-    const activation = new UserActivation(this, onOutputChange, functionArguments);
+  activateWithContainingActivation(containingActivation, onOutputChange, functionArguments) {
+    const activation = new UserActivation(this, containingActivation, onOutputChange, functionArguments);
 
     // Add the new activation to the set of _all_ activations of this definition
     this.activations.add(activation);
 
     return activation;
+  }
+
+  activateClosed(onOutputChange, functionArguments) {
+    return this.activate(null, onOutputChange, functionArguments);
   }
 
   // Notify this definition that one of its activations has been deactivated

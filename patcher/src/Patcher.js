@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Map as IMap, Record } from 'immutable';
 
-import { createRootUserDefinition } from 'dynamic-runtime';
+import { createRootUserClosure } from 'dynamic-runtime';
 import './Patcher.css';
 import CreateNodeBox from './CreateNodeBox';
 import NodePool from './NodePool';
@@ -54,8 +54,9 @@ class Patcher extends Component {
   constructor(props) {
     super(props);
 
-    this.rootDefinition = createRootUserDefinition();
-    this.rootActivation = this.rootDefinition.activate(() => {});
+    this.rootClosure = createRootUserClosure();
+    this.rootDefinition = this.rootClosure.definition;
+    this.rootActivation = this.rootClosure.activate();
     this.rootActivation.evaluate(); // TODO: not sure if this is necessary
     this.nodePool = new NodePool(); // TODO: this should probably be passed as a prop, but let's load directly for now
 
