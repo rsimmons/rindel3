@@ -8,7 +8,18 @@ import UserClosure from './UserClosure';
 export default class UserActivation {
   constructor(definition, containingActivation, setOutput, functionArguments) {
     this.definition = definition;
+
+    // sanity check containingActivation
+    if (containingActivation) {
+      assert(containingActivation.definition === definition.containingDefinition);
+    } else {
+      assert(!definition.containingDefinition);
+    }
+    if (containingActivation) {
+      containingActivation.activatedClosureOfContainedDefinition(this.definition, this);
+    }
     this.containingActivation = containingActivation; // the activation of our containing definition, i.e. our lexical outer scope
+
     this.setOutput = setOutput;
 
     // Maps from OutPort and InPort objects to their corresponding Stream objects for this activation
@@ -22,6 +33,9 @@ export default class UserActivation {
     // Map from native applications (within this user-defined function) to their activation wrappers (NativeApplication -> ApplicationWrapper)
     //  We need this so that we can deactivate these activations if we remove the native application.
     this.containedNativeApplicationActivationControl = new Map();
+
+    // Map from UserDefinition (contained by this activation's definition) to a Set of its activations scoped under this activation
+    this.containedDefinitionActivations = new Map();
 
     // Create streams for "internal side" of function inputs and outputs
     for (const outPort of definition.definitionInputs) {
@@ -79,6 +93,10 @@ export default class UserActivation {
   destroy() {
     for (const act of this.containedNativeApplicationActivationControl.values()) {
       act.destroy();
+    }
+
+    if (this.containingActivation) {
+      this.containingActivation.deactivatedClosureOfContainedDefinition(this.definition, this);
     }
 
     this.definition.activationDeactivated(this);
@@ -145,6 +163,21 @@ export default class UserActivation {
     actControl.changeSettings(newSettings);
 
     this._insertAppEvalTask(app);
+  }
+
+  // Let this activation know that a closure made from one of its contained definitions was activated
+  activatedClosureOfContainedDefinition(definition, activation) {
+    assert(definition.containingDefinition === this.definition);
+    if (!this.containedDefinitionActivations.has(definition)) {
+      this.containedDefinitionActivations.set(definition, new Set());
+    }
+    this.containedDefinitionActivations.get(definition).add(activation);
+  }
+
+  // Let this activation know that a closure made from one of its contained definitions was deactivated
+  deactivatedClosureOfContainedDefinition(definition, activation) {
+    assert(definition.containingDefinition === this.definition);
+    this.containedDefinitionActivations.get(definition).delete(activation);
   }
 
   _gatherNativeApplicationInputs(nativeApplication, initial) {
