@@ -150,7 +150,7 @@ export default class UserActivation {
 
     // NOTE: I think it should not be necessary to flow the connection if the ports are event-tempo,
     // but that's not a very important optimization.
-    this._flowConnection(cxn);
+    this._flowOutConnection(cxn);
   }
 
   // Let the activation know that a connection was removed from the definition
@@ -158,7 +158,7 @@ export default class UserActivation {
     assert(!this.evaluating);
 
     // Flow the removal of the connection
-    this._flowConnection(cxn, true);
+    this._flowOutConnection(cxn, true);
   }
 
   // Set the settings on an application
@@ -240,6 +240,13 @@ export default class UserActivation {
     for (const inPort of nativeApplication.inputs) {
       const stream = new Stream();
       this.inPortStream.set(inPort, stream);
+
+      // This is sort of hacky perhaps, but we need to flow in initial values on connections
+      // that come from _outer scopes_. I think this is the correct place to do it.
+      const cxn = inPort.connection;
+      if (cxn && (cxn.path.length > 0)) {
+        this._flowInConnection(cxn);
+      }
     }
 
     const outStreams = []; // We'll use this below
@@ -339,9 +346,11 @@ export default class UserActivation {
   }
 
   // Propagate value change along the given connection within the context of the given activation (at the source/out side),
-  //  and "notify" any input ports whose values have changed. We create the downstream Stream object if it doesn't already exist.
+  //  and "notify" any input ports whose values have changed.
   //  If removal argument is true, then flow an undefined value along the connection (because connection is being removed).
-  _flowConnection(cxn, removal = false) {
+  _flowOutConnection(cxn, removal = false) {
+    assert(cxn.outPort.containingDefinition === this.definition);
+
     // Since a connection may go into a contained definition, flowing a connection (within the context of a single activation)
     //  may cause the value to "fan out" to multiple activations (or none). So first, we compute the set of relevant activations
     //  on the downstream end of the connection.
@@ -392,6 +401,22 @@ export default class UserActivation {
     }
   }
 
+  // Propagate value change along the given connection within the context of the given activation (at the dest/input side)
+  // Unlike _flowOutConnection, we don't "notify" anything.
+  _flowInConnection(cxn) {
+    assert(cxn.inPort.containingDefinition === this.definition);
+
+    // Find the activation for the ouput end of this connection by walking up our "parent" activations.
+    let outPortActivation = this;
+    for (let i = 0; i < cxn.path.length; i++) {
+      outPortActivation = outPortActivation.containingActivation;
+    }
+
+    const outStream = outPortActivation.outPortStream.get(cxn.outPort);
+    const inStream = this.inPortStream.get(cxn.inPort);
+    inStream.setValue(outStream.latestValue, this.currentInstant);
+  }
+
   // Set the value of the given outPort in the context of activation (which corresponds to a specific stream),
   //  and flow the change along any outgoing connections.
   // NOTE: We take a OutPort+UserActivation rather than Stream because we need the OutPort to find connections.
@@ -403,7 +428,7 @@ export default class UserActivation {
 
     // Flow the change
     for (const cxn of outPort.connections) {
-      this._flowConnection(cxn);
+      this._flowOutConnection(cxn);
     }
   }
 
