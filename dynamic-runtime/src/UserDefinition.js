@@ -274,8 +274,21 @@ export default class UserDefinition {
       return [];
     }
 
-    // TODO: implement. need to do lowest common ancestor of definition tree, I think. look at the containingDefinition of ports
-    throw new Error('unimplemented');
+    assert(outPort.containingDefinition === this);
+
+    // Find definition path to get inward to inPort from outPort (which must be in this def)
+    let def = inPort.containingDefinition;
+    const path = [];
+    while (def) {
+      if (def === this) {
+        return path;
+      }
+      path.push(def);
+      def = def.containingDefinition;
+    }
+
+    // If we exited the while loop, that means there is no path, so we return null
+    return null;
   }
 
   // NOTE: This returns a path if valid, otherwise returns null
@@ -361,7 +374,7 @@ export default class UserDefinition {
         // to any applications that make use of it.
         const outermostSubdef = cxn.path[0];
         for (const napp of this.definitionToUsingApplications.get(outermostSubdef)) {
-          this._topologicalSortTraverseFromNapp(traversingNapps, finishedNapps, reverseResult);
+          this._topologicalSortTraverseFromNapp(napp, traversingNapps, finishedNapps, reverseResult);
         }
       } else {
         // Connection has empty path, which means that it goes to another port in this same scope

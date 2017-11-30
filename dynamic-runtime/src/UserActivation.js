@@ -304,6 +304,16 @@ export default class UserActivation {
     });
   }
 
+  _insertAppDefChangedTask(app, subdefPath) {
+    const priority = app.sortIndex;
+    assert(priority !== undefined);
+    this.priorityQueue.insert(priority, {
+      tag: 'napp_defchanged',
+      nativeApplication: app,
+      subdefPath,
+    });
+  }
+
   _notifyInPort(inPort) {
     // See what task is associated with notifying inPort, and insert an element
     // into the priority queue, associated with this activation.
@@ -328,8 +338,24 @@ export default class UserActivation {
   //  and "notify" any input ports whose values have changed. We create the downstream Stream object if it doesn't already exist.
   //  If removal argument is true, then flow an undefined value along the connection (because connection is being removed).
   _flowConnection(cxn, removal = false) {
-    // TODO: Handle connections that enter a contained definition
-    assert(cxn.path.length === 0);
+    // Since a connection may go into a contained definition, flowing a connection (within the context of a single activation)
+    //  may cause the value to "fan out" to multiple activations (or none). So first, we compute the set of relevant activations
+    //  on the downstream end of the connection.
+    let downstreamActivations = [this];
+    for (const subdef of cxn.path) {
+      const nextDownstreamActivations = [];
+
+      for (const act of downstreamActivations) {
+        const cda = act.containedDefinitionActivations;
+        if (cda.has(subdef)) {
+          for (const subact of cda.get(subdef)) {
+            nextDownstreamActivations.push(subact);
+          }
+        }
+      }
+
+      downstreamActivations = nextDownstreamActivations;
+    }
 
     let flowValue;
     if (removal) {
@@ -341,13 +367,25 @@ export default class UserActivation {
       flowValue = outStream.latestValue;
     }
 
-    const inStream = this.inPortStream.get(cxn.inPort);
+    for (const act of downstreamActivations) {
+      const inStream = act.inPortStream.get(cxn.inPort);
 
-    // TODO: Ensure that inStream's last changed instant is less than current instant?
-    inStream.setValue(flowValue, this.currentInstant);
+      // TODO: Ensure that inStream's last changed instant is less than current instant?
+      inStream.setValue(flowValue, act.currentInstant);
 
-    // Trigger anything "listening" on this port
-    this._notifyInPort(cxn.inPort);
+      // Trigger anything "listening" on this port
+      act._notifyInPort(cxn.inPort);
+    }
+
+    // If we flowed into a sub-definition, then we need to insert a task to call definitionChanged
+    // on any applications in this activation that take (a closure of) that sub-definition as
+    // an argument.
+    if (cxn.path.length > 0) {
+      const outermostSubdef = cxn.path[0];
+      for (const napp of this.definition.definitionToUsingApplications.get(outermostSubdef)) {
+        this._insertAppDefChangedTask(napp, cxn.path);
+      }
+    }
   }
 
   // Set the value of the given outPort in the context of activation (which corresponds to a specific stream),
@@ -426,11 +464,19 @@ export default class UserActivation {
       }
 
       switch (task.tag) {
-        case 'napp':
-          const {nativeApplication} = task;
-          const activationControl = this.containedNativeApplicationActivationControl.get(nativeApplication);
-          const inputs = this._gatherNativeApplicationInputs(nativeApplication, false);
-          activationControl.evaluate(inputs);
+        case 'napp': {
+            const {nativeApplication} = task;
+            const activationControl = this.containedNativeApplicationActivationControl.get(nativeApplication);
+            const inputs = this._gatherNativeApplicationInputs(nativeApplication, false);
+            activationControl.evaluate(inputs);
+          }
+          break;
+
+        case 'napp_defchanged': {
+            const {nativeApplication, subdefPath} = task;
+            const activationControl = this.containedNativeApplicationActivationControl.get(nativeApplication);
+            activationControl.definitionChanged(subdefPath);
+          }
           break;
 
         case 'defout':
