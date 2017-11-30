@@ -91,8 +91,10 @@ export default class UserActivation {
   }
 
   destroy() {
-    for (const act of this.containedNativeApplicationActivationControl.values()) {
-      act.destroy();
+    for (const actControl of this.containedNativeApplicationActivationControl.values()) {
+      if (actControl.destroy) {
+        actControl.destroy();
+      }
     }
 
     if (this.containingActivation) {
@@ -137,7 +139,9 @@ export default class UserActivation {
 
     const actControl = this.containedNativeApplicationActivationControl.get(app);
 
-    actControl.destroy();
+    if (actControl.destroy) {
+      actControl.destroy();
+    }
   }
 
   // Let the activation know that a connection was added to the definition
