@@ -3,6 +3,28 @@
 import { createRootUserClosure } from '../..';
 import { buildConstant, buildPointwiseUnary, buildPointwiseBinary, buildSink } from '../nativeDefinitionHelpers';
 
+// A function that outputs a constant step value taken from its settings, useful for testing.
+const settingsConstantDef = {
+  inputs: [],
+  output: {tempo: 'step'},
+  defaultSettings: {value: 0},
+
+  activation: class {
+    constructor(setOutput, functionArguments, initialSettings) {
+      this.setOutput = setOutput;
+      this.settings = initialSettings;
+    }
+
+    evaluate() {
+      this.setOutput(this.settings.value);
+    }
+
+    changeSettings(newSettings) {
+      this.settings = newSettings;
+    }
+  },
+}
+
 describe('runtime', () => {
   test('user defined identity function', () => {
     const closure = createRootUserClosure({
@@ -164,5 +186,30 @@ describe('runtime', () => {
 
     expect(mockSink.mock.calls).toEqual([[undefined]]);
     mockSink.mockClear();
+  });
+
+  test('constant function using settings', () => {
+    const closure = createRootUserClosure({
+      inputs: [],
+      output: {tempo: 'step'},
+    });
+    const def = closure.definition;
+
+    const constApp = def.addNativeApplication(settingsConstantDef);
+    def.setApplicationSettings(constApp, {value: 123});
+
+    def.addConnection(constApp.output, def.definitionOutput);
+
+    const outputCallback = jest.fn();
+    const act = closure.activate(outputCallback);
+
+    expect(outputCallback).not.toBeCalled();
+
+    act.evaluate();
+    expect(outputCallback.mock.calls).toEqual([[123]]);
+    outputCallback.mockClear();
+
+    def.setApplicationSettings(constApp, {value: 456});
+    expect(outputCallback.mock.calls).toEqual([[456]]);
   });
 });

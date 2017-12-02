@@ -209,6 +209,8 @@ export default class UserDefinition {
   setApplicationSettings(nativeApplication, newSettings) {
     assert(this.nativeApplications.has(nativeApplication));
 
+    nativeApplication.settings = newSettings;
+
     // Let all activations of this definition know that this application's settings have changed
     for (const act of this.activations) {
       act.setApplicationSettings(nativeApplication, newSettings);
