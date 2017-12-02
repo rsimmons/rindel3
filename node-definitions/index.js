@@ -198,9 +198,10 @@ export const mousePos = {
   },
 };
 
-export const redSquare = {
+export const redCircle = {
   inputs: [
     {tempo: 'step', name: 'position'},
+    {tempo: 'step', name: 'radius'},
   ],
   output: null,
 
@@ -208,24 +209,28 @@ export const redSquare = {
     constructor(setOutput) {
       this.setOutput = setOutput;
 
-      this.squareElem = document.createElement('div');
-      this.squareElem.style.cssText = 'position: absolute; width: 20px; height: 20px; border: 1px solid black; background: red; pointer-events: none;';
-      document.body.appendChild(this.squareElem);
+      this.circleElem = document.createElement('div');
+      this.circleElem.style.cssText = 'position: absolute; border-radius: 50%; background: red; pointer-events: none;';
+      document.body.appendChild(this.circleElem);
     }
 
     evaluate(inputs) {
-      const p = inputs[0].value;
-      if (p === undefined) {
-        // TODO: Should we hide it if undefined?
-        return;
+      // TODO: Should we hide it if the position is undefined?
+      const p = inputs[0].value || {x: 0, y: 0};
+      const radius = inputs[1].value || 25;
+      if (radius < 0) {
+        radius = 0;
       }
+      const halfRadius = 0.5*radius;
 
-      this.squareElem.style.left = p.x + 'px';
-      this.squareElem.style.top = p.y + 'px';
+      this.circleElem.style.left = (p.x - halfRadius) + 'px';
+      this.circleElem.style.top = (p.y - halfRadius) + 'px';
+      this.circleElem.style.width = radius + 'px';
+      this.circleElem.style.height = radius + 'px';
     }
 
     destroy() {
-      document.body.removeChild(this.squareElem);
+      document.body.removeChild(this.circleElem);
     }
   },
 };
