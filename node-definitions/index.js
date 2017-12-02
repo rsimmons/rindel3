@@ -23,7 +23,15 @@ export const grid = buildPointwiseUnary(size => {
 });
 
 export const add = buildPointwiseBinary((a, b) => a + b);
-export const addVec = buildPointwiseBinary((a, b) => ({x: a.x+b.x, y: a.y+b.y}), true);
+export const sub = buildPointwiseBinary((a, b) => a - b);
+export const mul = buildPointwiseBinary((a, b) => a * b);
+export const div = buildPointwiseBinary((a, b) => a / b);
+export const vecAdd = buildPointwiseBinary((a, b) => ({x: a.x+b.x, y: a.y+b.y}), true);
+export const vecDist = buildPointwiseBinary((a, b) => {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx*dx + dy*dy);
+}, true);
 
 export const consoleLog = buildSink(v => { console.log('consoleLog', v) });
 
