@@ -210,7 +210,7 @@ export const redCircle = {
       this.setOutput = setOutput;
 
       this.circleElem = document.createElement('div');
-      this.circleElem.style.cssText = 'position: absolute; border-radius: 50%; background: red; pointer-events: none;';
+      this.circleElem.style.cssText = 'position: absolute; border-radius: 50%; background: red; pointer-events: none; user-select: none';
       document.body.appendChild(this.circleElem);
     }
 
