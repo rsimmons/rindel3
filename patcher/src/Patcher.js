@@ -10,8 +10,8 @@ import genUID from './uid';
 
 const AppExtra = Record({
   uid: null,
-  name: null,
   position: null, // {x, y}
+  defName: null,
   def: null,
   functionArguments: null,
   uiInstance: null,
@@ -148,7 +148,7 @@ class Patcher extends Component {
     if (event.target === document.body) {
       this.flashMessageElem.flash('Copy Patch');
 
-      const data = '{foo: 123}';
+      const data = this.serialize();
       event.clipboardData.setData('text/plain', data);
       event.clipboardData.setData('application/json', data);
       event.preventDefault();
@@ -236,30 +236,30 @@ class Patcher extends Component {
     });
   }
 
-  handleCreateNodeBoxSelect = (nodeName, nodeDef) => {
+  handleCreateNodeBoxSelect = (defName, def) => {
     if (!this.state.creatingNode) {
       throw new Error('internal error');
     }
 
     // Look up what definition this creation is happening within
-    const definition = this.state.creatingNode.definition;
+    const containingDefinition = this.state.creatingNode.definition;
 
     // If the definition has function parameters, created sub-definitions for each one
     const functionArguments = new Map();
-    if (nodeDef.functionParameters) {
-      for (const n in nodeDef.functionParameters) {
-        const signature = nodeDef.functionParameters[n];
-        const subdef = definition.addContainedUserDefinition(signature);
+    if (def.functionParameters) {
+      for (const n in def.functionParameters) {
+        const signature = def.functionParameters[n];
+        const subdef = containingDefinition.addContainedUserDefinition(signature);
         this.setState(state => ({...state, defExtra: state.defExtra.set(subdef, new DefExtra({viewOffset: {x: 0, y: 0}}))}));
         functionArguments.set(n, subdef);
       }
     }
 
-    const app = definition.addNativeApplication(nodeDef, functionArguments);
+    const app = containingDefinition.addNativeApplication(def, functionArguments);
 
     this.setState((state) => {
       const boxPos = state.creatingNode.boxPosition;
-      const offset = this.elemRelativePosition(this.defPositioningElemMap.get(definition));
+      const offset = this.elemRelativePosition(this.defPositioningElemMap.get(containingDefinition));
       const position = {
         x: boxPos.x - offset.x,
         y: boxPos.y - offset.y,
@@ -267,9 +267,9 @@ class Patcher extends Component {
 
       const appExtra = new AppExtra({
         uid: genUID(),
-        name: nodeName,
         position,
-        def: nodeDef,
+        defName,
+        def,
         functionArguments,
       });
 
@@ -333,6 +333,102 @@ class Patcher extends Component {
     this.setState((state) => {
       return { ...state, appExtra: state.appExtra.delete(nodeId)};
     });
+  }
+
+  serialize() {
+    class ObjectNumberer {
+      constructor() {
+        this.map = new Map();
+        this.nextNum = 1;
+      }
+
+      getNumber(obj) {
+        if (!this.map.has(obj)) {
+          this.map.set(obj, this.nextNum++);
+        }
+        return this.map.get(obj);
+      }
+    }
+
+    const appNumberer = new ObjectNumberer();
+    const defNumberer = new ObjectNumberer();
+
+    const serializeDefinition = (def) => {
+      const defNum = defNumberer.getNumber(def);
+
+      const apps = [];
+      for (const napp of def.nativeApplications) {
+        const extra = this.state.appExtra.get(napp);
+
+        const appObj = {
+          i: appNumberer.getNumber(napp),
+          d: extra.defName,
+          p: extra.position,
+        };
+
+        if (extra.functionArguments.size) {
+          const funcArgs = {};
+          for (const [n, d] of extra.functionArguments) {
+            funcArgs[n] = defNumberer.getNumber(d);
+          }
+
+          appObj.fa = funcArgs;
+        }
+
+        apps.push(appObj);
+      }
+
+      const subdefs = [...def.containedDefinitions].map(subdef => serializeDefinition(subdef));
+
+      const cxns = [];
+      for (const cxn of def.connections) {
+        const portReference = (port) => {
+          const owner = port.owner;
+          switch (owner.tag) {
+            case 'app':
+              return {
+                t: 'a',
+                a: appNumberer.getNumber(owner.app),
+                ...(owner.which === undefined ? {} : {w: owner.which}),
+              };
+
+            case 'def':
+              return {
+                t: 'd',
+                ...(owner.which === undefined ? {} : {w: owner.which}),
+              };
+
+            default:
+              throw new Error('internal error');
+          }
+        };
+
+        const cxnObj = {
+          i: portReference(cxn.inPort),
+          o: portReference(cxn.outPort),
+        }
+
+        if (cxn.path.length) {
+          cxnObj.p = cxn.path.map(d => defNumberer.getNumber(d));
+        }
+
+        cxns.push(cxnObj);
+      }
+
+      return {
+        i: defNum,
+        a: apps,
+        sd: subdefs,
+        c: cxns,
+      };
+    };
+
+    const obj = {
+      r3v: 1,
+      d: serializeDefinition(this.rootDefinition),
+    };
+
+    return JSON.stringify(obj);
   }
 
   updateCanvas() {
@@ -400,7 +496,7 @@ class Patcher extends Component {
 
     return (
       <div key={appExtra.uid} className="Patcher_node Patcher_box-shadow" style={{position: 'absolute', left: appExtra.position.x, top: appExtra.position.y}}>
-        <div className="Patcher_node-header" onMouseDown={(e) => { this.handleNodeHeaderMouseDown(napp, e); }}>{appExtra.name}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(appExtra.uid); }}>✕</button></div></div>
+        <div className="Patcher_node-header" onMouseDown={(e) => { this.handleNodeHeaderMouseDown(napp, e); }}>{appExtra.defName}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(appExtra.uid); }}>✕</button></div></div>
         {appExtra.def.ui &&
           <ApplicationSettings uiClass={appExtra.def.ui} defaultSettings={appExtra.def.defaultSettings} onChangeSettings={(newSettings) => { definition.setApplicationSettings(napp, newSettings); }} />
         }

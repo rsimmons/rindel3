@@ -330,8 +330,8 @@ export default class UserActivation {
     // into the priority queue, associated with this activation.
     const owner = inPort.owner;
     switch (owner.tag) {
-      case 'napp':
-        this._insertAppEvalTask(owner.nativeApplication);
+      case 'app':
+        this._insertAppEvalTask(owner.app);
         break;
 
       case 'def':

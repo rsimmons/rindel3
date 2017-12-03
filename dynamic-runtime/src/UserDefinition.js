@@ -24,9 +24,10 @@ class Connection {
 }
 
 class OutPort {
-  constructor(containingDefinition, tempo) {
+  constructor(containingDefinition, tempo, owner) {
     this.containingDefinition = containingDefinition;
     this.tempo = tempo;
+    this.owner = owner;
     this.connections = new Set();
   }
 }
@@ -68,20 +69,18 @@ export default class UserDefinition {
     this.definitionOutputs = null; // either InPort or Map from name to InPort or null
 
     if (signature) {
+      let i = 0;
       for (const inp of signature.inputs) {
-        this.definitionInputs.push(new OutPort(this, inp.tempo));
+        this.definitionInputs.push(new OutPort(this, inp.tempo, {tag: 'def', which: i}));
+        i++;
       }
-      const inPortsOwner = {
-        tag: 'def',
-        definition: this,
-      };
       if (signature.output) {
         assert(!signature.outputs);
-        this.definitionOutput = new InPort(this, null, signature.output.tempo, inPortsOwner);
+        this.definitionOutput = new InPort(this, null, signature.output.tempo, {tag: 'def'});
       } else if (signature.outputs) {
         this.definitionOutput = new Map();
         for (const n in signature.outputs) {
-          this.definitionOutput.set(n, new InPort(this, n, signature.outputs[n].tempo, inPortsOwner));
+          this.definitionOutput.set(n, new InPort(this, n, signature.outputs[n].tempo, {tag: 'def', which: n}));
         }
       }
     }
@@ -116,21 +115,18 @@ export default class UserDefinition {
     const app = new NativeApplication(definition, functionArguments, definition.defaultSettings);
 
     // Create port objects for the application
-    // TODO: In the future, I think these port objects will need to be created on-demand as well (for variable positional arguments)
-    const inPortsOwner = {
-      tag: 'napp',
-      nativeApplication: app,
-    };
+    let i = 0;
     for (const inp of definition.inputs) {
-      app.inputs.push(new InPort(this, inp.name, inp.tempo, inPortsOwner));
+      app.inputs.push(new InPort(this, inp.name, inp.tempo, {tag: 'app', app, which: i}));
+      i++;
     }
     if (definition.output) {
       assert(!definition.outputs);
-      app.output = new OutPort(this, definition.output.tempo);
+      app.output = new OutPort(this, definition.output.tempo, {tag: 'app', app});
     } else if (definition.outputs) {
       app.output = new Map();
       for (const n in definition.outputs) {
-        app.output.set(n, new OutPort(this, definition.outputs[n].tempo));
+        app.output.set(n, new OutPort(this, definition.outputs[n].tempo, {tag: 'app', app, which: n}));
       }
     }
 
@@ -382,9 +378,9 @@ export default class UserDefinition {
         // Connection has empty path, which means that it goes to another port in this same scope
         const inPortOwner = cxn.inPort.owner;
         switch (inPortOwner.tag) {
-          case 'napp':
+          case 'app':
             // Traverse from each native application at downstream end of this cxn
-            this._topologicalSortTraverseFromNapp(inPortOwner.nativeApplication, traversingNapps, finishedNapps, reverseResult);
+            this._topologicalSortTraverseFromNapp(inPortOwner.app, traversingNapps, finishedNapps, reverseResult);
             break;
 
           case 'def':
