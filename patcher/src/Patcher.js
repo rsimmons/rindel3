@@ -4,6 +4,7 @@ import { Map as IMap, Record } from 'immutable';
 import { createRootUserClosure } from 'dynamic-runtime';
 import './Patcher.css';
 import CreateNodeBox from './CreateNodeBox';
+import FlashMessage from './FlashMessage';
 import NodePool from './NodePool';
 import genUID from './uid';
 
@@ -78,14 +79,18 @@ class Patcher extends Component {
     this.defPositioningElemMap = new WeakMap(); // maps UserDefinition to DOM element
   }
 
+  componentDidMount() {
+    document.addEventListener('copy', this.handleCopy);
+
+    this.updateCanvas();
+  }
+
   componentWillUnmount() {
+    document.removeEventListener('copy', this.handleCopy);
+
     if (this.drag) {
       this.endDrag();
     }
-  }
-
-  componentDidMount() {
-    this.updateCanvas();
   }
 
   componentDidUpdate() {
@@ -137,6 +142,17 @@ class Patcher extends Component {
     document.removeEventListener('mousemove', this.handleMouseMove);
     document.removeEventListener('mouseup', this.handleMouseUp);
     this.drag = null;
+  }
+
+  handleCopy = (event) => {
+    if (event.target === document.body) {
+      this.flashMessageElem.flash('Copy Patch');
+
+      const data = '{foo: 123}';
+      event.clipboardData.setData('text/plain', data);
+      event.clipboardData.setData('application/json', data);
+      event.preventDefault();
+    }
   }
 
   handleDefinitionMouseDown = (definition, event) => {
@@ -443,6 +459,7 @@ class Patcher extends Component {
         {this.state.creatingNode &&
           <div style={{position: 'absolute', left: this.state.creatingNode.boxPosition.x, top: this.state.creatingNode.boxPosition.y}}><CreateNodeBox width={200} nodePool={this.nodePool} onSelect={this.handleCreateNodeBoxSelect} onCancel={this.handleCreateNodeBoxCancel} /></div>
         }
+        <FlashMessage ref={(el) => { this.flashMessageElem = el; }} />
       </div>
     );
   }

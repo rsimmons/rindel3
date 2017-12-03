@@ -1,0 +1,20 @@
+.FlashMessage {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 32px;
+  font-weight: bold;
+  border-radius: 0.5em;
+  padding: 0.5em 1em;
+  background: white;
+  color: #222;
+  opacity: 1;
+}
+
+.FlashMessage_fade-out {
+  transition: opacity 0.5s linear;
+  opacity: 0;
+}

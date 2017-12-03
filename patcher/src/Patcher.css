@@ -11,6 +11,7 @@
   background: #222;
   position: relative;
   overflow: hidden;
+  user-select: none;
 }
 
 .Patcher_node {
