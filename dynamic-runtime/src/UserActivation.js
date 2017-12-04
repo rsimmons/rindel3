@@ -47,10 +47,12 @@ export default class UserActivation {
       for (const [n, inPort] of definition.definitionOutput) {
         const inStream = new Stream();
         this.inPortStream.set(inPort, inStream);
+        this._flowInPortFromOutside(inPort);
       }
     } else if (definition.definitionOutput) {
       const inStream = new Stream();
       this.inPortStream.set(definition.definitionOutput, inStream);
+      this._flowInPortFromOutside(definition.definitionOutput);
     }
 
     // Activate native applications (which will create streams, pulling in initial values if any).
@@ -241,12 +243,8 @@ export default class UserActivation {
       const stream = new Stream();
       this.inPortStream.set(inPort, stream);
 
-      // This is sort of hacky perhaps, but we need to flow in initial values on connections
-      // that come from _outer scopes_. I think this is the correct place to do it.
-      const cxn = inPort.connection;
-      if (cxn && (cxn.path.length > 0)) {
-        this._flowInConnection(cxn);
-      }
+      // Flow in initial value if connection comes from an outer scope.
+      this._flowInPortFromOutside(inPort);
     }
 
     const outStreams = []; // We'll use this below
@@ -402,7 +400,6 @@ export default class UserActivation {
   }
 
   // Propagate value change along the given connection within the context of the given activation (at the dest/input side)
-  // Unlike _flowOutConnection, we don't "notify" anything.
   _flowInConnection(cxn) {
     assert(cxn.inPort.containingDefinition === this.definition);
 
@@ -415,6 +412,15 @@ export default class UserActivation {
     const outStream = outPortActivation.outPortStream.get(cxn.outPort);
     const inStream = this.inPortStream.get(cxn.inPort);
     inStream.setValue(outStream.latestValue, this.currentInstant);
+    this._notifyInPort(cxn.inPort);
+  }
+
+  // Flow any connection on this inPort if the connection comes from an outer activation (scope)
+  _flowInPortFromOutside(inPort) {
+    const cxn = inPort.connection;
+    if (cxn && (cxn.path.length > 0)) {
+      this._flowInConnection(cxn);
+    }
   }
 
   // Set the value of the given outPort in the context of activation (which corresponds to a specific stream),
