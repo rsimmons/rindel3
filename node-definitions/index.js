@@ -38,7 +38,7 @@ export const consoleLog = buildSink(v => { console.log('consoleLog', v) });
 export const constantJS = {
   inputs: [],
   output: {tempo: 'step'},
-  defaultSettings: {valueString: '0'},
+  defaultSettings: {vs: '0'},
 
   activation: class {
     constructor(setOutput, functionArguments, initialSettings) {
@@ -49,7 +49,7 @@ export const constantJS = {
     evaluate() {
       let value = undefined;
       try {
-        value = eval('(' + this.settings.valueString + ')');
+        value = eval('(' + this.settings.vs + ')');
       } catch(e) {
         // ignore
       }
@@ -64,17 +64,17 @@ export const constantJS = {
   ui: class {
     constructor(container, initialSettings, changeSettings) {
       this.inputElem = document.createElement('input');
-      this.inputElem.value = initialSettings.valueString;
+      this.inputElem.value = initialSettings.vs;
       container.appendChild(this.inputElem);
       this.onChange = () => {
       };
       this.inputElem.addEventListener('change', () => {
-        changeSettings({valueString: this.inputElem.value});
+        changeSettings({vs: this.inputElem.value});
       }, false);
     }
 
     update(newSettings) {
-      this.inputElem.textContent = newSettings.valueString;
+      this.inputElem.textContent = newSettings.vs;
     }
   },
 };
