@@ -217,7 +217,7 @@ export const redCircle = {
     evaluate(inputs) {
       // TODO: Should we hide it if the position is undefined?
       const p = inputs[0].value || {x: 0, y: 0};
-      const radius = inputs[1].value || 25;
+      const radius = (inputs[1].value === undefined) ? 25 : inputs[1].value;
       if (radius < 0) {
         radius = 0;
       }
