@@ -26,6 +26,10 @@ export default class NodePool {
     });
   }
 
+  lookup(id) {
+    return nodeDefs[id];
+  }
+
   search(query) {
     const results = [];
     for (const node of this.pool) {

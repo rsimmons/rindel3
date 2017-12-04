@@ -30,10 +30,10 @@ class ApplicationSettings extends Component {
   }
 
   componentDidMount() {
-    const {uiClass, defaultSettings, onChangeSettings} = this.props;
+    const {uiClass, initialSettings, onChangeSettings} = this.props;
 
     // Create UI into container elem
-    this.uiInstance = new uiClass(this.containerElem, defaultSettings, (newSettings) => {
+    this.uiInstance = new uiClass(this.containerElem, initialSettings, (newSettings) => {
       onChangeSettings(newSettings);
     });
   }
@@ -55,17 +55,17 @@ class Patcher extends Component {
   constructor(props) {
     super(props);
 
-    this.rootClosure = createRootUserClosure();
-    this.rootDefinition = this.rootClosure.definition;
-    this.rootActivation = this.rootClosure.activate();
-    this.rootActivation.evaluate(); // TODO: not sure if this is necessary
+    this.rootClosure = null;
+    this.rootDefinition = null;
+    this.rootActivation = null;
+
     this.nodePool = new NodePool(); // TODO: this should probably be passed as a prop, but let's load directly for now
 
     // Positions in state are relative to patcher element
     this.state = {
       creatingNode: null,
-      appExtra: new IMap(), // NativeApplication -> AppExtra
-      defExtra: new IMap([[this.rootDefinition, new DefExtra({viewOffset: {x: 0, y: 0}})]]), // UserDefinition -> DefExtra
+      appExtra: null, // NativeApplication -> AppExtra
+      defExtra: null, // UserDefinition -> DefExtra
       selectedPort: null,
     };
 
@@ -79,14 +79,22 @@ class Patcher extends Component {
     this.defPositioningElemMap = new WeakMap(); // maps UserDefinition to DOM element
   }
 
+  componentWillMount() {
+    // NOTE: We put this here instead of in constructor because it uses setState which we're not
+    // supposed to call in the constructor.
+    this.load();
+  }
+
   componentDidMount() {
     document.addEventListener('copy', this.handleCopy);
+    document.addEventListener('paste', this.handlePaste);
 
     this.updateCanvas();
   }
 
   componentWillUnmount() {
     document.removeEventListener('copy', this.handleCopy);
+    document.removeEventListener('paste', this.handlePaste);
 
     if (this.drag) {
       this.endDrag();
@@ -95,6 +103,171 @@ class Patcher extends Component {
 
   componentDidUpdate() {
     this.updateCanvas();
+  }
+
+  load(patchData) {
+    if (this.rootActivation) {
+      this.rootActivation.destroy();
+    }
+
+    const appExtra = new Map();
+    const defExtra = new Map();
+
+    if (patchData) {
+      try {
+        const appMap = new Map(); // app number to object
+        const defMap = new Map(); // def number to object
+
+        const loadSignature = (loadDef) => {
+          const TEMPO_LONGFORM = new Map([['s', 'step'], ['e', 'event']]);
+          const loadPortSig = (lps) => ({
+            tempo: TEMPO_LONGFORM.get(lps.t),
+            ...(lps.n ? {name: lps.name} : {}),
+          });
+
+          const signature = {};
+
+          if (loadDef.di) {
+            signature.inputs = loadDef.di.map(inp => loadPortSig(inp));
+          } else {
+            signature.inputs = [];
+          }
+
+          if (loadDef.dos) {
+            signature.outputs = {};
+            for (const n in loadDef.dos) {
+              signature.outputs[n] = loadPortSig(loadDef.dos[n]);
+            }
+          } else if (loadDef.do) {
+            signature.output = loadPortSig(loadDef.do);
+          } else {
+            signature.output = null;
+          }
+
+          return signature;
+        };
+
+        const loadDefinition = (loadDef, intoDef) => {
+          defMap.set(loadDef.i, intoDef);
+
+          // TODO: actually load the view offset
+          defExtra.set(intoDef, new DefExtra({viewOffset: {x: 0, y: 0}}));
+
+          for (const loadSubdef of (loadDef.sd || [])) {
+            const subdef = intoDef.addContainedUserDefinition(loadSignature(loadSubdef));
+            loadDefinition(loadSubdef, subdef);
+          }
+
+          for (const loadApp of loadDef.a) {
+            const defName = loadApp.d;
+            const def = this.nodePool.lookup(defName);
+
+            const functionArguments = new Map();
+            if (loadApp.fa) {
+              for (const n in loadApp.fa) {
+                functionArguments.set(n, defMap.get(loadApp.fa[n]));
+              }
+            }
+
+            const app = intoDef.addNativeApplication(def, functionArguments, loadApp.s);
+
+            appMap.set(loadApp.i, app);
+
+            appExtra.set(app, new AppExtra({
+              uid: genUID(),
+              position: loadApp.p,
+              defName,
+              def,
+              functionArguments,
+            }));
+          }
+
+          for (const loadCxn of loadDef.c) {
+            let outPort;
+            switch (loadCxn.o.t) {
+              case 'a': {
+                  const app = appMap.get(loadCxn.o.a);
+                  const which = loadCxn.o.w;
+                  if (which) {
+                    // TODO: implement
+                    throw new Error('unimplemented');
+                  } else {
+                    outPort = app.output;
+                  }
+                }
+                break;
+
+              case 'd':
+                outPort = intoDef.definitionInputs[loadCxn.o.w];
+                break;
+
+              default:
+                throw new Error('?');
+            }
+
+            let inPort;
+            switch (loadCxn.i.t) {
+              case 'a': {
+                  const app = appMap.get(loadCxn.i.a);
+                  const which = loadCxn.i.w;
+                  inPort = app.inputs[which];
+                }
+                break;
+
+              case 'd': {
+                  const inPortDef = (loadCxn.i.d === undefined) ? intoDef : defMap.get(loadCxn.i.d);
+                  if (inPortDef.definitionOutput instanceof Map) {
+                    // TODO: implement
+                    throw new Error('unimplemented');
+                  } else {
+                    if (!inPortDef.definitionOutput) {
+                      throw new Error('internal error');
+                    }
+                    inPort = inPortDef.definitionOutput;
+                  }
+                }
+                break;
+
+              default:
+                throw new Error('?');
+            }
+
+            intoDef.addConnection(outPort, inPort);
+          }
+        };
+
+        const patchObj = JSON.parse(patchData);
+
+        if (patchObj.r3v !== 1) {
+          throw new Error('magic number missing, not a patch');
+        }
+
+        this.rootClosure = createRootUserClosure(loadSignature(patchObj.d));
+        this.rootDefinition = this.rootClosure.definition;
+
+        loadDefinition(patchObj.d, this.rootDefinition);
+      } catch(e) {
+        // TODO: handle more gracefully
+        console.log('failed to load patch');
+        throw e;
+      }
+    } else {
+      // No data to load, create default setup
+      this.rootClosure = createRootUserClosure();
+      this.rootDefinition = this.rootClosure.definition;
+
+      defExtra.set(this.rootDefinition, new DefExtra({viewOffset: {x: 0, y: 0}}));
+    }
+
+    this.rootActivation = this.rootClosure.activate();
+    this.rootActivation.evaluate();
+
+    this.setState({
+      creatingNode: null,
+      appExtra: new IMap(appExtra),
+      defExtra: new IMap(defExtra),
+      selectedPort: null,
+    });
   }
 
   elemRelativePosition(elem) {
@@ -151,6 +324,20 @@ class Patcher extends Component {
       const data = this.serialize();
       event.clipboardData.setData('text/plain', data);
       event.clipboardData.setData('application/json', data);
+      event.preventDefault();
+    }
+  }
+
+  handlePaste = (event) => {
+    if (event.target === document.body) {
+
+      const data = event.clipboardData.getData('text/plain');
+      if (data) {
+        this.load(data);
+        this.flashMessageElem.flash('Paste Patch');
+      } else {
+        this.flashMessageElem.flash('Paste Patch - No Data');
+      }
       event.preventDefault();
     }
   }
@@ -375,6 +562,10 @@ class Patcher extends Component {
           appObj.fa = funcArgs;
         }
 
+        if (napp.settings !== undefined) {
+          appObj.s = napp.settings;
+        }
+
         apps.push(appObj);
       }
 
@@ -404,23 +595,47 @@ class Patcher extends Component {
         };
 
         const cxnObj = {
-          i: portReference(cxn.inPort),
           o: portReference(cxn.outPort),
+          i: portReference(cxn.inPort),
         }
 
         if (cxn.path.length) {
-          cxnObj.p = cxn.path.map(d => defNumberer.getNumber(d));
+          cxnObj.i.d = defNumberer.getNumber(cxn.inPort.containingDefinition);
         }
 
         cxns.push(cxnObj);
       }
 
-      return {
+      const defObj = {
         i: defNum,
         a: apps,
-        sd: subdefs,
         c: cxns,
       };
+
+      if (subdefs.length) {
+        defObj.sd = subdefs;
+      }
+
+      const TEMPO_SHORTFORM = new Map([['step', 's'], ['event', 'e']]);
+      const serializePortSig = (ps) => ({
+        t: TEMPO_SHORTFORM.get(ps.tempo),
+        ...(ps.name ? {n: ps.name} : {}),
+      });
+
+      if (def.definitionInputs.length) {
+        defObj.di = def.definitionInputs.map(di => serializePortSig(di));
+      }
+
+      if (def.definitionOutput instanceof Map) {
+        defObj.dos = {};
+        for (const [n, p] of def.definitionOutput) {
+          defObj.dos[n] = serializePortSig(p);
+        }
+      } else if (def.definitionOutput) {
+        defObj.do = serializePortSig(def.definitionOutput);
+      }
+
+      return defObj;
     };
 
     const obj = {
@@ -498,7 +713,7 @@ class Patcher extends Component {
       <div key={appExtra.uid} className="Patcher_node Patcher_box-shadow" style={{position: 'absolute', left: appExtra.position.x, top: appExtra.position.y}}>
         <div className="Patcher_node-header" onMouseDown={(e) => { this.handleNodeHeaderMouseDown(napp, e); }}>{appExtra.defName}<div className="Patcher_node-header-buttons"><button onClick={() => { this.handleRemoveNode(appExtra.uid); }}>✕</button></div></div>
         {appExtra.def.ui &&
-          <ApplicationSettings uiClass={appExtra.def.ui} defaultSettings={appExtra.def.defaultSettings} onChangeSettings={(newSettings) => { definition.setApplicationSettings(napp, newSettings); }} />
+          <ApplicationSettings uiClass={appExtra.def.ui} initialSettings={napp.settings} onChangeSettings={(newSettings) => { definition.setApplicationSettings(napp, newSettings); }} />
         }
         <div className="Patcher_node-ports">
           <div className="Patcher_input-ports-block">{inputPorts.map(p => this.renderPort(p.name, p.portObj, p.key, true))}</div>
@@ -536,7 +751,7 @@ class Patcher extends Component {
           <div className="Patcher_definition-ports Patcher_definition-output-ports Patcher_box-shadow">
             <div className="Patcher_input-ports-block">{(() => {
               if (definition.definitionOutput instanceof Map) {
-                return [...definition.definitionOutputs].map(([n, inPort]) => this.renderPort(n, inPort, n, true));
+                return [...definition.definitionOutput].map(([n, inPort]) => this.renderPort(n, inPort, n, true));
               } else if (definition.definitionOutput) {
                 return this.renderPort(null, definition.definitionOutput, '', true);
               }

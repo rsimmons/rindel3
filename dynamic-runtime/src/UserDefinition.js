@@ -66,7 +66,7 @@ export default class UserDefinition {
     this.nativeApplications = new Set(); // These are kept in topological sort order
 
     this.definitionInputs = []; // array of OutPort
-    this.definitionOutputs = null; // either InPort or Map from name to InPort or null
+    this.definitionOutput = null; // either InPort or Map from name to InPort or null
 
     if (signature) {
       let i = 0;
@@ -101,7 +101,7 @@ export default class UserDefinition {
     return definition;
   }
 
-  addNativeApplication(definition, functionArguments) {
+  addNativeApplication(definition, functionArguments, settings) {
     // Validate functionArguments parameter
     if (functionArguments) {
       for (const [n, def] of functionArguments) {
@@ -112,7 +112,7 @@ export default class UserDefinition {
       }
     }
 
-    const app = new NativeApplication(definition, functionArguments, definition.defaultSettings);
+    const app = new NativeApplication(definition, functionArguments, (settings === undefined) ? definition.defaultSettings : settings);
 
     // Create port objects for the application
     let i = 0;
