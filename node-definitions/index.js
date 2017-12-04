@@ -350,6 +350,7 @@ export const map = {
 /////////////////////////////////////////////////////////////////////////////
 // STILL NEED UPDATING BELOW THIS POINT
 
+/*
 export const forEach = {
   functionParameters: {
     f: {
@@ -482,3 +483,4 @@ export const eventCount = {
     context.setOutputs({count: newCount});
   },
 }
+*/
