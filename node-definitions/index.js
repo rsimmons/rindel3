@@ -347,6 +347,64 @@ export const map = {
   },
 };
 
+export const store = {
+  inputs: [
+    {name: 'value', tempo: 'step'},
+    {name: 'store', tempo: 'event'},
+    {name: 'initialValue', tempo: 'step'},
+  ],
+  output: {tempo: 'step'},
+
+  activation: class {
+    constructor(setOutput) {
+      this.setOutput = setOutput;
+      this.initialized = false;
+    }
+
+    evaluate([value, store, initialValue]) {
+      let doOutput = false;
+
+      if (store.present) {
+        this.currentValue = value.value;
+        doOutput = true;
+      } if (!this.initialized) {
+        this.currentValue = initialValue.value;
+        this.initialized = true;
+        doOutput = true;
+      }
+
+      if (doOutput) {
+        this.setOutput(this.currentValue);
+      }
+    }
+  },
+};
+
+export const mouseClick = {
+  inputs: [],
+  output: {tempo: 'event'},
+
+  activation: class {
+    constructor(setOutput) {
+      this.setOutput = setOutput;
+
+      this.onMouseClick = this.onMouseClick.bind(this);
+    }
+
+    onMouseClick(e) {
+      this.setOutput(undefined); // emit unit event
+    }
+
+    evaluate() {
+      document.addEventListener('click', this.onMouseClick);
+    }
+
+    destroy() {
+      document.removeEventListener('click', this.onMouseClick);
+    }
+  },
+};
+
 /////////////////////////////////////////////////////////////////////////////
 // STILL NEED UPDATING BELOW THIS POINT
 
@@ -432,31 +490,6 @@ export const mouseInt = {
 
   destroy: (context) => {
     document.removeEventListener('mousemove', context.transient.onMouseMove);
-  },
-};
-
-export const mouseClick = {
-  inputs: {},
-  outputs: {
-    click: {tempo: 'event'},
-  },
-
-  create: (context) => {
-    const onClick = (e) => {
-      context.setOutputs({
-        click: null,
-      });
-    };
-
-    document.addEventListener('click', onClick);
-
-    context.transient = {
-      onClick
-    };
-  },
-
-  destroy: (context) => {
-    document.removeEventListener('click', context.transient.onClick);
   },
 };
 
