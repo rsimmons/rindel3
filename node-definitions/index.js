@@ -26,6 +26,7 @@ export const add = buildPointwiseBinary((a, b) => a + b);
 export const sub = buildPointwiseBinary((a, b) => a - b);
 export const mul = buildPointwiseBinary((a, b) => a * b);
 export const div = buildPointwiseBinary((a, b) => a / b);
+export const vecBuild = buildPointwiseBinary((x, y) => ({x, y}), true);
 export const vecAdd = buildPointwiseBinary((a, b) => ({x: a.x+b.x, y: a.y+b.y}), true);
 export const vecDist = buildPointwiseBinary((a, b) => {
   const dx = a.x - b.x;
