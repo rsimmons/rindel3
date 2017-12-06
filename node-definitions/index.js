@@ -405,6 +405,29 @@ export const mouseClick = {
   },
 };
 
+export const hold = {
+  inputs: [
+    {name: 'value', tempo: 'step'},
+    {name: 'hold', tempo: 'step'},
+  ],
+  output: {tempo: 'step'},
+
+  activation: class {
+    constructor(setOutput) {
+      this.setOutput = setOutput;
+      this.initialized = false;
+    }
+
+    evaluate([value, hold]) {
+      if (!this.initialized || !hold.value) {
+        this.setOutput(value.value);
+      }
+
+      this.initialized = true;
+    }
+  },
+};
+
 /////////////////////////////////////////////////////////////////////////////
 // STILL NEED UPDATING BELOW THIS POINT
 
