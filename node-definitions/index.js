@@ -356,7 +356,7 @@ export const map = {
 
 export const store = {
   inputs: [
-    {name: 'value', tempo: 'step'},
+    {name: 'newValue', tempo: 'step'},
     {name: 'store', tempo: 'event'},
     {name: 'initialValue', tempo: 'step'},
   ],
@@ -368,11 +368,11 @@ export const store = {
       this.initialized = false;
     }
 
-    evaluate([value, store, initialValue]) {
+    evaluate([newValue, store, initialValue]) {
       let doOutput = false;
 
       if (store.present) {
-        this.currentValue = value.value;
+        this.currentValue = newValue.value;
         doOutput = true;
       } if (!this.initialized) {
         this.currentValue = initialValue.value;
