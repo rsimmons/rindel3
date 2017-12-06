@@ -435,6 +435,31 @@ export const hold = {
   },
 };
 
+export const changed = {
+  inputs: [
+    {tempo: 'step'},
+  ],
+  outputs: {
+    changed: {tempo: 'event'},
+    previous: {tempo: 'step'},
+  },
+
+  activation: class {
+    constructor(setOutput) {
+      this.setOutput = setOutput;
+      this.previousValue = undefined;
+    }
+
+    evaluate([value]) {
+      this.setOutput(new Map([
+        ['changed', undefined], // unit event
+        ['previous', this.previousValue],
+      ]));
+      this.previousValue = value.value;
+    }
+  },
+};
+
 /////////////////////////////////////////////////////////////////////////////
 // STILL NEED UPDATING BELOW THIS POINT
 
