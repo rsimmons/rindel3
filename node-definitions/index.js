@@ -107,9 +107,12 @@ export const displayAsString = {
   },
 };
 
-export const animationTime = {
+export const animationFrame = {
   inputs: [],
-  output: {tempo: 'step'},
+  outputs: {
+    time: {tempo: 'step'},
+    next: {tempo: 'event'},
+  },
 
   activation: class {
     constructor(setOutput) {
@@ -118,7 +121,10 @@ export const animationTime = {
     }
 
     onFrame(time) {
-      this.setOutput(0.001*time);
+      this.setOutput(new Map([
+        ['time', 0.001*time],
+        ['next', undefined], // unit event
+      ]));
       this.reqId = requestAnimationFrame(this.onFrame);
     }
 
