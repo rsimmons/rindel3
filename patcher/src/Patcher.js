@@ -673,10 +673,15 @@ class Patcher extends Component {
       const fromPos = portElemConnectPos(fromPortElem);
       const toPos = portElemConnectPos(toPortElem, true);
 
+      const dx = fromPos.x - toPos.x;
+      const dy = fromPos.y - toPos.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+
       // Place cp1 right of fromPos, cp2 left of toPos
-      const STRAIN_RELIEF = 100;
-      const cp1x = fromPos.x +STRAIN_RELIEF;
-      const cp2x = toPos.x - STRAIN_RELIEF;
+      const MAX_STRAIN_RELIEF = 100;
+      const strainRelief = Math.min(0.5*dist, MAX_STRAIN_RELIEF);
+      const cp1x = fromPos.x + strainRelief;
+      const cp2x = toPos.x - strainRelief;
       ctx.moveTo(fromPos.x, fromPos.y);
       ctx.bezierCurveTo(cp1x, fromPos.y, cp2x, toPos.y, toPos.x, toPos.y);
     }
