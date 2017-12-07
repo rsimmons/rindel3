@@ -319,7 +319,7 @@ export default class UserDefinition {
   }
 
   isValidConnection(outPort, inPort) {
-    return !!_validateConnection(outPort, inPort);
+    return !!this._validateConnection(outPort, inPort);
   }
 
   addConnection(outPort, inPort) {
