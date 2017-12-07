@@ -317,9 +317,13 @@ class Patcher extends Component {
     this.drag = null;
   }
 
+  flashMessage(message) {
+    this.flashMessageElem.flash(message);
+  }
+
   handleCopy = (event) => {
     if (event.target === document.body) {
-      this.flashMessageElem.flash('Copy Patch');
+      this.flashMessage('Copy Patch');
 
       const data = this.serialize();
       event.clipboardData.setData('text/plain', data);
@@ -334,9 +338,9 @@ class Patcher extends Component {
       const data = event.clipboardData.getData('text/plain');
       if (data) {
         this.load(data);
-        this.flashMessageElem.flash('Paste Patch');
+        this.flashMessage('Paste Patch');
       } else {
-        this.flashMessageElem.flash('Paste Patch - No Data');
+        this.flashMessage('Paste Patch - No Data');
       }
       event.preventDefault();
     }

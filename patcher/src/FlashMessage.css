@@ -15,6 +15,6 @@
 }
 
 .FlashMessage_fade-out {
-  transition: opacity 0.5s linear;
+  transition: opacity 1.5s ease-out;
   opacity: 0;
 }
