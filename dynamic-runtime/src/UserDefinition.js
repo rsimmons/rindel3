@@ -187,7 +187,9 @@ export default class UserDefinition {
 
   _disconnectPort(portObj) {
     if (portObj instanceof InPort) {
-      this._removeConnection(portObj.connection);
+      if (portObj.connection) {
+        this._removeConnection(portObj.connection);
+      }
     } else {
       assert(portObj instanceof OutPort);
       for (const cxn of portObj.connections) {
