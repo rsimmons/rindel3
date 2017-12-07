@@ -480,6 +480,12 @@ class Patcher extends Component {
         // Attempt connection between selected port and this port
         let a = state.selectedPort;
         let b = {portObj, isInput};
+
+        if (a.portObj === b.portObj) {
+          // Clear selected port
+          return {...state, selectedPort: null};
+        }
+
         let invalid = false;
         if (a.isInput) {
           if (b.isInput) {
