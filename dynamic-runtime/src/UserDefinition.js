@@ -55,6 +55,9 @@ class NativeApplication {
   }
 }
 
+class GraphCycleError extends Error {
+}
+
 // Definition of a user-defined (not native) function
 // containingDefinition is the UserDefinition that contains this one, or null if this is a root-level definition.
 export default class UserDefinition {
@@ -320,15 +323,11 @@ export default class UserDefinition {
     return path;
   }
 
-  isValidConnection(outPort, inPort) {
-    return !!this._validateConnection(outPort, inPort);
-  }
-
   addConnection(outPort, inPort) {
     // Validate connection (which finds its definition path as a side effect)
     const v = this._validateConnection(outPort, inPort);
     if (!v) {
-      throw new Error('invalid connection, caller should check first');
+      return false;
     }
     const path = v;
 
@@ -339,7 +338,20 @@ export default class UserDefinition {
     this.connections.add(cxn);
 
     // Update topological sort
-    this._updateTopologicalSort();
+    try {
+      this._updateTopologicalSort();
+    } catch (e) {
+      if (e instanceof GraphCycleError) {
+        // Undo adding
+        outPort.connections.delete(cxn);
+        inPort.connection = null;
+        this.connections.delete(cxn);
+
+        return false;
+      } else {
+        throw e;
+      }
+    }
 
     // Let all activations of this definition know that a connection was added
     for (const act of this.activations) {
@@ -347,6 +359,8 @@ export default class UserDefinition {
     }
 
     this.recursiveActivationsUpdate();
+
+    return true;
   }
 
   _removeConnection(cxn) {
@@ -402,8 +416,7 @@ export default class UserDefinition {
     }
 
     if (traversingNapps.has(nativeApplication)) {
-      // TODO: handle this differently
-      throw new Error('topological sort encountered a cycle');
+      throw new GraphCycleError();
     }
 
     traversingNapps.add(nativeApplication);

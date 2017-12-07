@@ -501,23 +501,16 @@ class Patcher extends Component {
           }
         }
 
-        const def = a.portObj.containingDefinition;
-
         if (!invalid) {
-          if (!def.isValidConnection(a.portObj, b.portObj)) {
-            invalid = true;
-          }
+          invalid = !a.portObj.containingDefinition.addConnection(a.portObj, b.portObj);
         }
 
         if (invalid) {
           this.flashMessage('Invalid Connection');
-          return state; // ignore
-        } else {
-          def.addConnection(a.portObj, b.portObj);
-
-          // Clear selected port
-          return {...state, selectedPort: null};
         }
+
+        // Clear selected port
+        return {...state, selectedPort: null};
       } else {
         // Set as selected port
         return {...state, selectedPort: {portObj, isInput}};
