@@ -3,6 +3,7 @@ import { nativeDefinitionHelpers } from 'dynamic-runtime';
 const {buildConstant, buildPointwiseUnary, buildPointwiseBinary, buildSink} = nativeDefinitionHelpers;
 
 export const one = buildConstant(1);
+export const twoPi = buildConstant(2*Math.PI);
 export const oneToTen = buildConstant([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 export const double = buildPointwiseUnary(v => 2*v);
 
@@ -26,6 +27,8 @@ export const add = buildPointwiseBinary((a, b) => a + b);
 export const sub = buildPointwiseBinary((a, b) => a - b);
 export const mul = buildPointwiseBinary((a, b) => a * b);
 export const div = buildPointwiseBinary((a, b) => a / b);
+export const sin = buildPointwiseUnary(x => Math.sin(x));
+export const cos = buildPointwiseUnary(x => Math.sin(x));
 export const vecBuild = buildPointwiseBinary((x, y) => ({x, y}), true);
 export const vecAdd = buildPointwiseBinary((a, b) => ({x: a.x+b.x, y: a.y+b.y}), true);
 export const vecDist = buildPointwiseBinary((a, b) => {
