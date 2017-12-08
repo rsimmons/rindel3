@@ -463,6 +463,23 @@ export const changed = {
   },
 };
 
+export const random = {
+  inputs: [
+    {name: 'repick', tempo: 'event'},
+  ],
+  output: {tempo: 'step'},
+
+  activation: class {
+    constructor(setOutput) {
+      this.setOutput = setOutput;
+    }
+
+    evaluate() {
+      this.setOutput(Math.random());
+    }
+  },
+};
+
 /////////////////////////////////////////////////////////////////////////////
 // STILL NEED UPDATING BELOW THIS POINT
 
